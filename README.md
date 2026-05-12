@@ -2,7 +2,8 @@
 
 **Crash-test benchmark: PostgreSQL vs MongoDB vs CockroachDB via Prisma**
 
-[![Crash Report](https://img.shields.io/badge/💥_Crash_Report-results%2Fcrash--report.html-red?style=for-the-badge)](results/crash-report.html)
+[![Crash Report](https://img.shields.io/badge/💥_Live_Crash_Report-%F0%9F%93%88_View_Online-red?style=for-the-badge)](https://nameless-monster-nerd.github.io/prismatic-showdown/)
+[![GitHub](https://img.shields.io/badge/📦_Source_Code-GitHub-181717?style=for-the-badge&logo=github)](https://github.com/Nameless-Monster-Nerd/prismatic-showdown)
 
 Each test **ramps up load until the database crashes** — connection refused, timeout, OOM, or pool exhaustion. All databases run under identical resource constraints (2 CPU cores + 2 GB RAM each).
 
@@ -166,6 +167,16 @@ prismatic-showdown/
 ├── package.json
 └── README.md
 ```
+
+---
+
+## 🌐 Live Report
+
+The crash report is published on **GitHub Pages**:
+
+👉 **[https://nameless-monster-nerd.github.io/prismatic-showdown/](https://nameless-monster-nerd.github.io/prismatic-showdown/)**
+
+Charts update automatically when you push a new `results/crash-report.html` to `docs/index.html`.
 
 ---
 

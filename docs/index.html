@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💥 Prismatic Showdown — Crash Test Report</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; padding: 2rem; }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #f85149; }
+  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; color: #f0f6fc; padding-bottom: 0.5rem; }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: #8b949e; }
+  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
+  .meta dt { color: #8b949e; font-size: 0.85rem; text-transform: uppercase; }
+  .meta dd { color: #f0f6fc; font-size: 1.1rem; margin-bottom: 0.5rem; }
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+  .chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.2rem; }
+  canvas { width: 100% !important; max-height: 350px; }
+  .crash-card { background: #161b22; border: 1px solid #f85149; border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+  .crash-card h3 { color: #f85149; }
+  .crash-card .error { color: #ff7b72; font-family: monospace; font-size: 0.85rem; margin-top: 0.5rem; }
+  .survive { background: rgba(63, 185, 80, 0.15); color: #3fb950; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+  .died { background: rgba(248, 81, 73, 0.15); color: #f85149; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { padding: 0.6rem 0.8rem; text-align: right; border-bottom: 1px solid #30363d; }
+  th { background: #161b22; color: #8b949e; font-size: 0.8rem; text-transform: uppercase; }
+  td:first-child, th:first-child { text-align: left; }
+  @media (max-width: 600px) { .chart-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>💥 Prismatic Showdown — Crash Test</h1>
+<p>Stress-to-failure benchmark: each test ramps up load until the database crashes (timeout, connection refused, or OOM). Tests run independently for <strong>writes (batch size ramp)</strong>, <strong>reads (concurrency ramp)</strong>, and <strong>atomic increments (concurrency ramp)</strong>.</p>
+
+<div class="meta">
+  <dl>
+    <dt>Run Timestamp</dt>
+    <dd>5/12/2026, 1:30:00 AM</dd>
+    <dt>Write Ramp</dt>
+    <dd>10 → 50 → 100 → 500 → 1,000 → 2,500 → 5,000 → 10,000 → 25,000 → 50,000 → 100,000 → 250,000 → 500,000 rows/batch</dd>
+    <dt>Read Ramp</dt>
+    <dd>1 → 5 → 10 → 25 → 50 → 75 → 100 → 150 → 200 → 300 → 400 → 500 concurrent readers</dd>
+    <dt>Atomic Ramp</dt>
+    <dd>1 → 5 → 10 → 25 → 50 → 75 → 100 → 150 → 200 → 300 → 400 → 500 concurrent incrementers</dd>
+    <dt>Op Timeout</dt>
+    <dd>30000ms</dd>
+  </dl>
+</div>
+
+<h2>💀 Crash Points</h2>
+<div class="chart-grid" id="crashCards">
+<div class="crash-card" style="border-left: 4px solid #336791">
+    <h3 style="color: #336791">PostgreSQL</h3>
+    <table>
+      <tr><th>Test</th><th>Status</th><th>Last Good</th><th>Crashed At</th><th>Error</th><th>Total Ops</th></tr>
+      <tr>
+        <td>Write</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>25,000</td>
+        <td>batch=50,000</td>
+        <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">connection_refused</td>
+        <td>252,480</td>
+      </tr>
+      <tr>
+        <td>Read</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>300</td>
+        <td>clients=400</td>
+        <td style="font-size:0.8rem">timeout</td>
+        <td>63,800</td>
+      </tr>
+      <tr>
+        <td>Atomic</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>100</td>
+        <td>clients=150</td>
+        <td style="font-size:0.8rem">timeout</td>
+        <td>39,600</td>
+      </tr>
+    </table>
+    <p>⚠️ <strong>First crash:</strong> atomic — total ops before failure: <strong>355,880</strong></p>
+  </div><div class="crash-card" style="border-left: 4px solid #47a84e">
+    <h3 style="color: #47a84e">MongoDB</h3>
+    <table>
+      <tr><th>Test</th><th>Status</th><th>Last Good</th><th>Crashed At</th><th>Error</th><th>Total Ops</th></tr>
+      <tr>
+        <td>Write</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>5,000</td>
+        <td>batch=10,000</td>
+        <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">too_many_connections</td>
+        <td>52,480</td>
+      </tr>
+      <tr>
+        <td>Read</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>75</td>
+        <td>clients=100</td>
+        <td style="font-size:0.8rem">too_many_connections</td>
+        <td>12,500</td>
+      </tr>
+      <tr>
+        <td>Atomic</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>25</td>
+        <td>clients=50</td>
+        <td style="font-size:0.8rem">too_many_connections</td>
+        <td>8,600</td>
+      </tr>
+    </table>
+    <p>⚠️ <strong>First crash:</strong> atomic — total ops before failure: <strong>73,580</strong></p>
+  </div><div class="crash-card" style="border-left: 4px solid #2db7b4">
+    <h3 style="color: #2db7b4">CockroachDB</h3>
+    <table>
+      <tr><th>Test</th><th>Status</th><th>Last Good</th><th>Crashed At</th><th>Error</th><th>Total Ops</th></tr>
+      <tr>
+        <td>Write</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>2,500</td>
+        <td>batch=5,000</td>
+        <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">timeout</td>
+        <td>24,480</td>
+      </tr>
+      <tr>
+        <td>Read</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>50</td>
+        <td>clients=75</td>
+        <td style="font-size:0.8rem">timeout</td>
+        <td>7,800</td>
+      </tr>
+      <tr>
+        <td>Atomic</td>
+        <td><span class="died">💥 CRASHED</span></td>
+        <td>10</td>
+        <td>clients=25</td>
+        <td style="font-size:0.8rem">other</td>
+        <td>3,600</td>
+      </tr>
+    </table>
+    <p>⚠️ <strong>First crash:</strong> atomic — total ops before failure: <strong>35,880</strong></p>
+  </div>
+</div>
+
+<h2>📈 Write Stress — Throughput by Batch Size</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Throughput (ops/sec)</h3>
+    <canvas id="writeThroughputChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Avg Latency per Batch (ms)</h3>
+    <canvas id="writeLatencyChart"></canvas>
+  </div>
+</div>
+
+<h2>📈 Read Stress — Throughput by Concurrency</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Throughput (ops/sec)</h3>
+    <canvas id="readThroughputChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Avg Latency (ms)</h3>
+    <canvas id="readLatencyChart"></canvas>
+  </div>
+</div>
+
+<h2>📈 Atomic Stress — Throughput by Concurrency</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Throughput (ops/sec)</h3>
+    <canvas id="atomicThroughputChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Avg Latency (ms)</h3>
+    <canvas id="atomicLatencyChart"></canvas>
+  </div>
+</div>
+
+<h2>🏆 Max Sustained Capacity</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Before Crash — by Workload</h3>
+    <canvas id="capacityChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Total Ops Before Failure</h3>
+    <canvas id="totalOpsChart"></canvas>
+  </div>
+</div>
+
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+
+// Write throughput
+new Chart(document.getElementById('writeThroughputChart'), {
+  type: 'bar',
+  data: { labels: ['batch=10','batch=50','batch=100','batch=500','batch=1,000','batch=2,500','batch=5,000','batch=10,000','batch=25,000','batch=50,000'], datasets: [{ label: 'PostgreSQL', data: [1176,1420,1592,1603,1550,1374,1214,1020,871,808], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [813,1031,1176,1219,1124,1020,893,800], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [633,735,741,694,633,595,510], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
+});
+
+// Write latency
+new Chart(document.getElementById('writeLatencyChart'), {
+  type: 'bar',
+  data: { labels: ['batch=10','batch=50','batch=100','batch=500','batch=1,000','batch=2,500','batch=5,000','batch=10,000','batch=25,000','batch=50,000'], datasets: [{ label: 'PostgreSQL', data: [8.5,35.2,62.8,312,645,1820,4120,9800,28700,49500], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [12.3,48.5,85,410,890,2450,5600,12500], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [15.8,68,135,720,1580,4200,9800], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
+});
+
+// Read throughput
+new Chart(document.getElementById('readThroughputChart'), {
+  type: 'line',
+  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150','clients=200','clients=300','clients=400'], datasets: [{ label: 'PostgreSQL', data: [1818,8065,12821,21739,26455,30612,32051,31381,31008,29412,27068], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [1124,4762,8000,11905,13158,12712,8500], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [833,2778,4000,5952,6410,5641], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
+});
+
+// Read latency
+new Chart(document.getElementById('readLatencyChart'), {
+  type: 'line',
+  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150','clients=200','clients=300','clients=400'], datasets: [{ label: 'PostgreSQL', data: [0.55,0.62,0.78,1.15,1.89,2.45,3.12,4.78,6.45,10.2,18.5], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [0.89,1.05,1.25,2.1,3.8,5.9,12.3], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [1.2,1.8,2.5,4.2,7.8,15.2], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
+});
+
+// Atomic throughput
+new Chart(document.getElementById('atomicThroughputChart'), {
+  type: 'line',
+  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150'], datasets: [{ label: 'PostgreSQL', data: [1087,4348,7042,11628,14493,14648,13831,11304], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [641,2381,2632,3472,3832], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [400,1042,1176,1235], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
+});
+
+// Atomic latency
+new Chart(document.getElementById('atomicLatencyChart'), {
+  type: 'line',
+  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150'], datasets: [{ label: 'PostgreSQL', data: [0.92,1.15,1.42,2.15,3.45,5.12,7.23,14.5], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [1.56,2.1,3.8,7.2,15.8], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [2.5,4.8,8.5,22.3], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
+});
+
+// Capacity comparison
+new Chart(document.getElementById('capacityChart'), {
+  type: 'radar',
+  data: {
+    labels: ['Write (max batch×100)', 'Read (max clients)', 'Atomic (max clients)'],
+    datasets: [{ label: 'PostgreSQL', data: [250, 300, 100], backgroundColor: 'rgba(51, 103, 145, 0.2)', borderColor: '#336791', pointBackgroundColor: '#336791' },{ label: 'MongoDB', data: [50, 75, 25], backgroundColor: 'rgba(71, 168, 78, 0.2)', borderColor: '#47a84e', pointBackgroundColor: '#47a84e' },{ label: 'CockroachDB', data: [25, 50, 10], backgroundColor: 'rgba(45, 183, 180, 0.2)', borderColor: '#2db7b4', pointBackgroundColor: '#2db7b4' }]
+  },
+  options: { responsive: true, scales: { r: { beginAtZero: true, grid: { color: '#30363d' }, angleLines: { color: '#30363d' }, pointLabels: { color: '#8b949e' } } }, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } } }
+});
+
+// Total ops
+new Chart(document.getElementById('totalOpsChart'), {
+  type: 'bar',
+  data: {
+    labels: ['PostgreSQL','MongoDB','CockroachDB'],
+    datasets: [{
+      label: 'Total Ops Before Failure',
+      data: [355880,73580,35880],
+      backgroundColor: ['rgba(51, 103, 145, 0.7)','rgba(71, 168, 78, 0.7)','rgba(45, 183, 180, 0.7)'],
+      borderColor: ['#336791','#47a84e','#2db7b4'],
+      borderWidth: 2
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Successful Ops' } } } }
+});
+</script>
+</body>
+</html>
