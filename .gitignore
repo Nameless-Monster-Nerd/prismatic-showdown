@@ -1,11 +1,13 @@
 node_modules/
 dist/
 .env
-results/bench-results-*.json     # Large timestamped dumps (gitignore)
-results/sample.json              # If you generate samples, name them differently
-
-# Keep latest.json and report.html in repo as sample results
+results/bench-results-*.json
+results/sample.json
 !results/latest.json
-!results/report.html
+!results/crash-report.html
+!results/crash-results.json
+
+# Docker mongo key
+!docker/mongo-key
 prisma/*.db
 prisma/migrations/

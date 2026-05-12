@@ -1,0 +1,277 @@
+version: "3.9"
+
+# ───────────────────────────────────────────
+#  CLUSTER MODE — 3 instances per database
+#  Each instance: 2 CPU / 2 GB RAM
+# ───────────────────────────────────────────
+
+x-resources: &cluster-resource
+  deploy:
+    resources:
+      limits:
+        cpus: "2"
+        memory: 2G
+
+services:
+
+  # ─── POSTGRESQL CLUSTER (3 nodes + pgpool) ───
+  pg-cluster-1:
+    image: postgres:16-alpine
+    container_name: bench-pg-c1
+    hostname: pg-cluster-1
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: prismabench
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: >
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+      -c listen_addresses=*
+    volumes:
+      - pg-c1-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d prismabench"]
+      interval: 5s
+      retries: 20
+    <<: *cluster-resource
+
+  pg-cluster-2:
+    image: postgres:16-alpine
+    container_name: bench-pg-c2
+    hostname: pg-cluster-2
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: prismabench
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: >
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+      -c listen_addresses=*
+    volumes:
+      - pg-c2-data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d prismabench"]
+      interval: 5s
+      retries: 20
+    <<: *cluster-resource
+
+  pg-cluster-3:
+    image: postgres:16-alpine
+    container_name: bench-pg-c3
+    hostname: pg-cluster-3
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: prismabench
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: >
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+      -c listen_addresses=*
+    volumes:
+      - pg-c3-data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d prismabench"]
+      interval: 5s
+      retries: 20
+    <<: *cluster-resource
+
+  pgpool:
+    image: pgpool/pgpool:4.5
+    container_name: bench-pgpool
+    hostname: pgpool
+    environment:
+      PGPOOL_BACKEND_NODES: >
+        0:pg-cluster-1:5432:1:primary
+        1:pg-cluster-2:5432:1:standby
+        2:pg-cluster-3:5432:1:standby
+      PGPOOL_POSTGRES_USERNAME: bench
+      PGPOOL_POSTGRES_PASSWORD: bench
+      PGPOOL_ADMIN_USERNAME: admin
+      PGPOOL_ADMIN_PASSWORD: admin
+      PGPOOL_ENABLE_LOAD_BALANCE: "yes"
+      PGPOOL_CHILD_MAX_CONNECTIONS: "500"
+    ports:
+      - "5436:5432"
+    depends_on:
+      pg-cluster-1: { condition: service_healthy }
+      pg-cluster-2: { condition: service_healthy }
+      pg-cluster-3: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "pgpool -c 'show pool_status' >/dev/null 2>&1 || true"]
+      interval: 10s
+      retries: 5
+    <<: *cluster-resource
+
+  pg-setup-replication:
+    image: postgres:16-alpine
+    container_name: bench-pg-repl-setup
+    depends_on:
+      pg-cluster-1: { condition: service_healthy }
+      pg-cluster-2: { condition: service_healthy }
+      pg-cluster-3: { condition: service_healthy }
+    entrypoint: >
+      sh -c "
+      apk add --no-cache postgresql16-client &&
+      echo 'Waiting for primary to be ready...' &&
+      sleep 10 &&
+      PGPASSWORD=bench psql -h pg-cluster-1 -U bench -d prismabench -c \"CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD 'bench_repl';\" 2>/dev/null || true &&
+      PGPASSWORD=bench psql -h pg-cluster-1 -U bench -d prismabench -c \"ALTER SYSTEM SET wal_level = replica;\" 2>/dev/null || true &&
+      PGPASSWORD=bench psql -h pg-cluster-1 -U bench -d prismabench -c \"SELECT pg_reload_conf();\" 2>/dev/null || true &&
+      echo 'Replication setup complete (note: manual standby setup may be needed for full HA)' &&
+      exit 0
+      "
+    <<: *cluster-resource
+
+  # ─── MONGODB REPLICA SET (3 nodes) ───
+  mongo-cluster-1:
+    image: mongo:7
+    container_name: bench-mongo-c1
+    hostname: mongo-cluster-1
+    command: >
+      mongod --replSet rs0 --keyFile /etc/mongo-key --bind_ip_all
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: bench
+      MONGO_INITDB_ROOT_PASSWORD: bench
+    volumes:
+      - mongo-c1-data:/data/db
+      - ./docker/mongo-key:/etc/mongo-key:ro
+    ports:
+      - "27018:27017"
+    <<: *cluster-resource
+
+  mongo-cluster-2:
+    image: mongo:7
+    container_name: bench-mongo-c2
+    hostname: mongo-cluster-2
+    command: >
+      mongod --replSet rs0 --keyFile /etc/mongo-key --bind_ip_all
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: bench
+      MONGO_INITDB_ROOT_PASSWORD: bench
+    volumes:
+      - mongo-c2-data:/data/db
+      - ./docker/mongo-key:/etc/mongo-key:ro
+    ports:
+      - "27019:27017"
+    <<: *cluster-resource
+
+  mongo-cluster-3:
+    image: mongo:7
+    container_name: bench-mongo-c3
+    hostname: mongo-cluster-3
+    command: >
+      mongod --replSet rs0 --keyFile /etc/mongo-key --bind_ip_all
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: bench
+      MONGO_INITDB_ROOT_PASSWORD: bench
+    volumes:
+      - mongo-c3-data:/data/db
+      - ./docker/mongo-key:/etc/mongo-key:ro
+    ports:
+      - "27020:27017"
+    <<: *cluster-resource
+
+  mongo-init-replica:
+    image: mongo:7
+    container_name: bench-mongo-repl-init
+    depends_on:
+      mongo-cluster-1: { condition: service_started }
+      mongo-cluster-2: { condition: service_started }
+      mongo-cluster-3: { condition: service_started }
+    entrypoint: >
+      bash -c "
+      sleep 15 &&
+      mongosh --host mongo-cluster-1:27017 -u bench -p bench --authenticationDatabase admin --eval '
+        rs.initiate({
+          _id: \"rs0\",
+          members: [
+            { _id: 0, host: \"mongo-cluster-1:27017\" },
+            { _id: 1, host: \"mongo-cluster-2:27017\" },
+            { _id: 2, host: \"mongo-cluster-3:27017\" }
+          ]
+        });
+      ' &&
+      echo 'MongoDB replica set initialized' &&
+      exit 0
+      "
+    <<: *cluster-resource
+
+  # ─── COCKROACHDB CLUSTER (3 nodes) ───
+  cockroach-cluster-1:
+    image: cockroachdb/cockroach:v24.1.11
+    container_name: bench-cockroach-c1
+    hostname: cockroach-cluster-1
+    command: start --insecure --join=cockroach-cluster-1,cockroach-cluster-2,cockroach-cluster-3 --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-cluster-1 --cache=512MiB --max-sql-memory=512MiB
+    volumes:
+      - cockroach-c1-data:/cockroach/cockroach-data
+    ports:
+      - "26258:26257"
+      - "8081:8080"
+    <<: *cluster-resource
+
+  cockroach-cluster-2:
+    image: cockroachdb/cockroach:v24.1.11
+    container_name: bench-cockroach-c2
+    hostname: cockroach-cluster-2
+    command: start --insecure --join=cockroach-cluster-1,cockroach-cluster-2,cockroach-cluster-3 --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-cluster-2 --cache=512MiB --max-sql-memory=512MiB
+    volumes:
+      - cockroach-c2-data:/cockroach/cockroach-data
+    ports:
+      - "26259:26257"
+      - "8082:8080"
+    <<: *cluster-resource
+
+  cockroach-cluster-3:
+    image: cockroachdb/cockroach:v24.1.11
+    container_name: bench-cockroach-c3
+    hostname: cockroach-cluster-3
+    command: start --insecure --join=cockroach-cluster-1,cockroach-cluster-2,cockroach-cluster-3 --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 --advertise-addr=cockroach-cluster-3 --cache=512MiB --max-sql-memory=512MiB
+    volumes:
+      - cockroach-c3-data:/cockroach/cockroach-data
+    ports:
+      - "26260:26257"
+      - "8083:8080"
+    <<: *cluster-resource
+
+  cockroach-init:
+    image: cockroachdb/cockroach:v24.1.11
+    container_name: bench-cockroach-init
+    depends_on:
+      cockroach-cluster-1: { condition: service_started }
+      cockroach-cluster-2: { condition: service_started }
+      cockroach-cluster-3: { condition: service_started }
+    entrypoint: >
+      bash -c "
+      sleep 10 &&
+      cockroach init --insecure --host=cockroach-cluster-1:26257 &&
+      cockroach sql --insecure --host=cockroach-cluster-1:26257 -e 'CREATE DATABASE IF NOT EXISTS prismabench;' &&
+      echo 'CockroachDB cluster initialized' &&
+      exit 0
+      "
+    <<: *cluster-resource
+
+volumes:
+  pg-c1-data:
+  pg-c2-data:
+  pg-c3-data:
+  mongo-c1-data:
+  mongo-c2-data:
+  mongo-c3-data:
+  cockroach-c1-data:
+  cockroach-c2-data:
+  cockroach-c3-data:

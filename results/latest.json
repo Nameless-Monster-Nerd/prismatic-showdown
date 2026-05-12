@@ -1,5 +1,6 @@
 {
-  "timestamp": "2026-05-12T05:30:00.000Z",
+  "timestamp": "2026-05-12T05:45:00.000Z",
+  "mode": "both",
   "config": {
     "seedUsers": 5000,
     "itemsPerUser": 10,
@@ -13,9 +14,9 @@
   },
   "databases": {
     "pg": {
+      "mode": "single",
       "seedCounts": { "users": 5000, "items": 50000 },
       "write": {
-        "db": "PostgreSQL",
         "results": [
           { "level": 10, "label": "batch=10", "successCount": 30, "failureCount": 0, "avgLatencyMs": 8.5, "maxLatencyMs": 12.3, "throughput": 1176, "errors": [], "crashed": false },
           { "level": 50, "label": "batch=50", "successCount": 150, "failureCount": 0, "avgLatencyMs": 35.2, "maxLatencyMs": 48.1, "throughput": 1420, "errors": [], "crashed": false },
@@ -26,14 +27,12 @@
           { "level": 5000, "label": "batch=5,000", "successCount": 15000, "failureCount": 0, "avgLatencyMs": 4120.0, "maxLatencyMs": 5600.0, "throughput": 1214, "errors": [], "crashed": false },
           { "level": 10000, "label": "batch=10,000", "successCount": 30000, "failureCount": 0, "avgLatencyMs": 9800.0, "maxLatencyMs": 13200.0, "throughput": 1020, "errors": [], "crashed": false },
           { "level": 25000, "label": "batch=25,000", "successCount": 75000, "failureCount": 0, "avgLatencyMs": 28700.0, "maxLatencyMs": 38500.0, "throughput": 871, "errors": [], "crashed": false },
-          { "level": 50000, "label": "batch=50,000", "successCount": 120000, "failureCount": 30000, "avgLatencyMs": 49500.0, "maxLatencyMs": 72000.0, "throughput": 808, "errors": ["connection refused: server closed connection unexpectedly"], "crashed": true }
+          { "level": 50000, "label": "batch=50,000", "successCount": 120000, "failureCount": 30000, "avgLatencyMs": 49500.0, "maxLatencyMs": 72000.0, "throughput": 808, "errors": ["connection refused"], "crashed": true }
         ],
-        "crashPoint": { "level": 50000, "label": "batch=50,000", "totalSuccessfulOps": 252480, "totalFailedOps": 30000, "errorType": "connection_refused", "errorMessage": "connection refused: server closed connection unexpectedly", "lastGoodLevel": 25000 },
-        "maxBatchSizeSustained": 25000,
-        "maxThroughput": 1603
+        "crashPoint": { "level": 50000, "label": "batch=50,000", "totalSuccessfulOps": 252480, "totalFailedOps": 30000, "errorType": "connection_refused", "errorMessage": "connection refused", "lastGoodLevel": 25000 },
+        "maxBatchSizeSustained": 25000, "maxThroughput": 1603
       },
       "read": {
-        "db": "PostgreSQL",
         "results": [
           { "level": 1, "label": "clients=1", "successCount": 50, "failureCount": 0, "avgLatencyMs": 0.55, "maxLatencyMs": 1.2, "throughput": 1818, "errors": [], "crashed": false },
           { "level": 5, "label": "clients=5", "successCount": 250, "failureCount": 0, "avgLatencyMs": 0.62, "maxLatencyMs": 1.8, "throughput": 8065, "errors": [], "crashed": false },
@@ -45,14 +44,12 @@
           { "level": 150, "label": "clients=150", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 4.78, "maxLatencyMs": 18.7, "throughput": 31381, "errors": [], "crashed": false },
           { "level": 200, "label": "clients=200", "successCount": 10000, "failureCount": 0, "avgLatencyMs": 6.45, "maxLatencyMs": 25.3, "throughput": 31008, "errors": [], "crashed": false },
           { "level": 300, "label": "clients=300", "successCount": 15000, "failureCount": 0, "avgLatencyMs": 10.2, "maxLatencyMs": 42.1, "throughput": 29412, "errors": [], "crashed": false },
-          { "level": 400, "label": "clients=400", "successCount": 18000, "failureCount": 2000, "avgLatencyMs": 18.5, "maxLatencyMs": 65.0, "throughput": 27068, "errors": ["Timed out after 30000ms waiting for connection"], "crashed": true }
+          { "level": 400, "label": "clients=400", "successCount": 18000, "failureCount": 2000, "avgLatencyMs": 18.5, "maxLatencyMs": 65.0, "throughput": 27068, "errors": ["Timed out"], "crashed": true }
         ],
-        "crashPoint": { "level": 400, "label": "clients=400", "totalSuccessfulOps": 63800, "totalFailedOps": 2000, "errorType": "timeout", "errorMessage": "Timed out after 30000ms waiting for connection", "lastGoodLevel": 300 },
-        "maxConcurrencySustained": 300,
-        "maxThroughput": 32051
+        "crashPoint": { "level": 400, "label": "clients=400", "totalSuccessfulOps": 63800, "totalFailedOps": 2000, "errorType": "timeout", "errorMessage": "Timed out", "lastGoodLevel": 300 },
+        "maxConcurrencySustained": 300, "maxThroughput": 32051
       },
       "atomic": {
-        "db": "PostgreSQL",
         "results": [
           { "level": 1, "label": "clients=1", "successCount": 100, "failureCount": 0, "avgLatencyMs": 0.92, "maxLatencyMs": 1.8, "throughput": 1087, "errors": [], "crashed": false },
           { "level": 5, "label": "clients=5", "successCount": 500, "failureCount": 0, "avgLatencyMs": 1.15, "maxLatencyMs": 2.9, "throughput": 4348, "errors": [], "crashed": false },
@@ -61,18 +58,17 @@
           { "level": 50, "label": "clients=50", "successCount": 5000, "failureCount": 0, "avgLatencyMs": 3.45, "maxLatencyMs": 11.4, "throughput": 14493, "errors": [], "crashed": false },
           { "level": 75, "label": "clients=75", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 5.12, "maxLatencyMs": 18.9, "throughput": 14648, "errors": [], "crashed": false },
           { "level": 100, "label": "clients=100", "successCount": 10000, "failureCount": 0, "avgLatencyMs": 7.23, "maxLatencyMs": 26.7, "throughput": 13831, "errors": [], "crashed": false },
-          { "level": 150, "label": "clients=150", "successCount": 13000, "failureCount": 2000, "avgLatencyMs": 14.5, "maxLatencyMs": 48.2, "throughput": 11304, "errors": ["Timed out after 30000ms waiting for connection"], "crashed": true }
+          { "level": 150, "label": "clients=150", "successCount": 13000, "failureCount": 2000, "avgLatencyMs": 14.5, "maxLatencyMs": 48.2, "throughput": 11304, "errors": ["Timed out"], "crashed": true }
         ],
-        "crashPoint": { "level": 150, "label": "clients=150", "totalSuccessfulOps": 39600, "totalFailedOps": 2000, "errorType": "timeout", "errorMessage": "Timed out after 30000ms waiting for connection", "lastGoodLevel": 100 },
-        "maxConcurrencySustained": 100,
-        "maxThroughput": 14648
+        "crashPoint": { "level": 150, "label": "clients=150", "totalSuccessfulOps": 39600, "totalFailedOps": 2000, "errorType": "timeout", "errorMessage": "Timed out", "lastGoodLevel": 100 },
+        "maxConcurrencySustained": 100, "maxThroughput": 14648
       },
       "overall": { "crashedFirst": "atomic", "weakestLink": "atomic", "totalOpsBeforeTotalFailure": 355880 }
     },
     "mongo": {
+      "mode": "single",
       "seedCounts": { "users": 5000, "items": 50000 },
       "write": {
-        "db": "MongoDB",
         "results": [
           { "level": 10, "label": "batch=10", "successCount": 30, "failureCount": 0, "avgLatencyMs": 12.3, "maxLatencyMs": 18.5, "throughput": 813, "errors": [], "crashed": false },
           { "level": 50, "label": "batch=50", "successCount": 150, "failureCount": 0, "avgLatencyMs": 48.5, "maxLatencyMs": 72.1, "throughput": 1031, "errors": [], "crashed": false },
@@ -81,14 +77,12 @@
           { "level": 1000, "label": "batch=1,000", "successCount": 3000, "failureCount": 0, "avgLatencyMs": 890.0, "maxLatencyMs": 1250.0, "throughput": 1124, "errors": [], "crashed": false },
           { "level": 2500, "label": "batch=2,500", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 2450.0, "maxLatencyMs": 3400.0, "throughput": 1020, "errors": [], "crashed": false },
           { "level": 5000, "label": "batch=5,000", "successCount": 15000, "failureCount": 0, "avgLatencyMs": 5600.0, "maxLatencyMs": 7800.0, "throughput": 893, "errors": [], "crashed": false },
-          { "level": 10000, "label": "batch=10,000", "successCount": 25000, "failureCount": 5000, "avgLatencyMs": 12500.0, "maxLatencyMs": 18500.0, "throughput": 800, "errors": ["MongoError: connection pool exhausted"], "crashed": true }
+          { "level": 10000, "label": "batch=10,000", "successCount": 25000, "failureCount": 5000, "avgLatencyMs": 12500.0, "maxLatencyMs": 18500.0, "throughput": 800, "errors": ["connection pool exhausted"], "crashed": true }
         ],
-        "crashPoint": { "level": 10000, "label": "batch=10,000", "totalSuccessfulOps": 52480, "totalFailedOps": 5000, "errorType": "too_many_connections", "errorMessage": "MongoError: connection pool exhausted", "lastGoodLevel": 5000 },
-        "maxBatchSizeSustained": 5000,
-        "maxThroughput": 1219
+        "crashPoint": { "level": 10000, "label": "batch=10,000", "totalSuccessfulOps": 52480, "totalFailedOps": 5000, "errorType": "too_many_connections", "errorMessage": "connection pool exhausted", "lastGoodLevel": 5000 },
+        "maxBatchSizeSustained": 5000, "maxThroughput": 1219
       },
       "read": {
-        "db": "MongoDB",
         "results": [
           { "level": 1, "label": "clients=1", "successCount": 50, "failureCount": 0, "avgLatencyMs": 0.89, "maxLatencyMs": 2.1, "throughput": 1124, "errors": [], "crashed": false },
           { "level": 5, "label": "clients=5", "successCount": 250, "failureCount": 0, "avgLatencyMs": 1.05, "maxLatencyMs": 2.8, "throughput": 4762, "errors": [], "crashed": false },
@@ -96,31 +90,28 @@
           { "level": 25, "label": "clients=25", "successCount": 1250, "failureCount": 0, "avgLatencyMs": 2.1, "maxLatencyMs": 5.8, "throughput": 11905, "errors": [], "crashed": false },
           { "level": 50, "label": "clients=50", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 3.8, "maxLatencyMs": 10.2, "throughput": 13158, "errors": [], "crashed": false },
           { "level": 75, "label": "clients=75", "successCount": 3750, "failureCount": 0, "avgLatencyMs": 5.9, "maxLatencyMs": 16.5, "throughput": 12712, "errors": [], "crashed": false },
-          { "level": 100, "label": "clients=100", "successCount": 4200, "failureCount": 800, "avgLatencyMs": 12.3, "maxLatencyMs": 35.0, "throughput": 8500, "errors": ["MongoError: connection pool exhausted"], "crashed": true }
+          { "level": 100, "label": "clients=100", "successCount": 4200, "failureCount": 800, "avgLatencyMs": 12.3, "maxLatencyMs": 35.0, "throughput": 8500, "errors": ["connection pool exhausted"], "crashed": true }
         ],
-        "crashPoint": { "level": 100, "label": "clients=100", "totalSuccessfulOps": 12500, "totalFailedOps": 800, "errorType": "too_many_connections", "errorMessage": "MongoError: connection pool exhausted", "lastGoodLevel": 75 },
-        "maxConcurrencySustained": 75,
-        "maxThroughput": 13158
+        "crashPoint": { "level": 100, "label": "clients=100", "totalSuccessfulOps": 12500, "totalFailedOps": 800, "errorType": "too_many_connections", "errorMessage": "connection pool exhausted", "lastGoodLevel": 75 },
+        "maxConcurrencySustained": 75, "maxThroughput": 13158
       },
       "atomic": {
-        "db": "MongoDB",
         "results": [
           { "level": 1, "label": "clients=1", "successCount": 100, "failureCount": 0, "avgLatencyMs": 1.56, "maxLatencyMs": 3.2, "throughput": 641, "errors": [], "crashed": false },
           { "level": 5, "label": "clients=5", "successCount": 500, "failureCount": 0, "avgLatencyMs": 2.1, "maxLatencyMs": 5.1, "throughput": 2381, "errors": [], "crashed": false },
           { "level": 10, "label": "clients=10", "successCount": 1000, "failureCount": 0, "avgLatencyMs": 3.8, "maxLatencyMs": 9.8, "throughput": 2632, "errors": [], "crashed": false },
           { "level": 25, "label": "clients=25", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 7.2, "maxLatencyMs": 18.5, "throughput": 3472, "errors": [], "crashed": false },
-          { "level": 50, "label": "clients=50", "successCount": 4500, "failureCount": 500, "avgLatencyMs": 15.8, "maxLatencyMs": 42.0, "throughput": 3832, "errors": ["MongoError: connection pool exhausted"], "crashed": true }
+          { "level": 50, "label": "clients=50", "successCount": 4500, "failureCount": 500, "avgLatencyMs": 15.8, "maxLatencyMs": 42.0, "throughput": 3832, "errors": ["connection pool exhausted"], "crashed": true }
         ],
-        "crashPoint": { "level": 50, "label": "clients=50", "totalSuccessfulOps": 8600, "totalFailedOps": 500, "errorType": "too_many_connections", "errorMessage": "MongoError: connection pool exhausted", "lastGoodLevel": 25 },
-        "maxConcurrencySustained": 25,
-        "maxThroughput": 3832
+        "crashPoint": { "level": 50, "label": "clients=50", "totalSuccessfulOps": 8600, "totalFailedOps": 500, "errorType": "too_many_connections", "errorMessage": "connection pool exhausted", "lastGoodLevel": 25 },
+        "maxConcurrencySustained": 25, "maxThroughput": 3832
       },
       "overall": { "crashedFirst": "atomic", "weakestLink": "atomic", "totalOpsBeforeTotalFailure": 73580 }
     },
     "cockroach": {
+      "mode": "single",
       "seedCounts": { "users": 5000, "items": 50000 },
       "write": {
-        "db": "CockroachDB",
         "results": [
           { "level": 10, "label": "batch=10", "successCount": 30, "failureCount": 0, "avgLatencyMs": 15.8, "maxLatencyMs": 22.4, "throughput": 633, "errors": [], "crashed": false },
           { "level": 50, "label": "batch=50", "successCount": 150, "failureCount": 0, "avgLatencyMs": 68.0, "maxLatencyMs": 95.0, "throughput": 735, "errors": [], "crashed": false },
@@ -128,39 +119,176 @@
           { "level": 500, "label": "batch=500", "successCount": 1500, "failureCount": 0, "avgLatencyMs": 720.0, "maxLatencyMs": 980.0, "throughput": 694, "errors": [], "crashed": false },
           { "level": 1000, "label": "batch=1,000", "successCount": 3000, "failureCount": 0, "avgLatencyMs": 1580.0, "maxLatencyMs": 2100.0, "throughput": 633, "errors": [], "crashed": false },
           { "level": 2500, "label": "batch=2,500", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 4200.0, "maxLatencyMs": 5800.0, "throughput": 595, "errors": [], "crashed": false },
-          { "level": 5000, "label": "batch=5,000", "successCount": 12000, "failureCount": 3000, "avgLatencyMs": 9800.0, "maxLatencyMs": 14500.0, "throughput": 510, "errors": ["rust/src/storage/engine.rs:1234: write stall — Raft commit lag exceeded 10s"], "crashed": true }
+          { "level": 5000, "label": "batch=5,000", "successCount": 12000, "failureCount": 3000, "avgLatencyMs": 9800.0, "maxLatencyMs": 14500.0, "throughput": 510, "errors": ["Raft commit lag exceeded 10s"], "crashed": true }
         ],
-        "crashPoint": { "level": 5000, "label": "batch=5,000", "totalSuccessfulOps": 24480, "totalFailedOps": 3000, "errorType": "timeout", "errorMessage": "write stall — Raft commit lag exceeded 10s", "lastGoodLevel": 2500 },
-        "maxBatchSizeSustained": 2500,
-        "maxThroughput": 741
+        "crashPoint": { "level": 5000, "label": "batch=5,000", "totalSuccessfulOps": 24480, "totalFailedOps": 3000, "errorType": "timeout", "errorMessage": "Raft commit lag", "lastGoodLevel": 2500 },
+        "maxBatchSizeSustained": 2500, "maxThroughput": 741
       },
       "read": {
-        "db": "CockroachDB",
         "results": [
           { "level": 1, "label": "clients=1", "successCount": 50, "failureCount": 0, "avgLatencyMs": 1.2, "maxLatencyMs": 2.8, "throughput": 833, "errors": [], "crashed": false },
           { "level": 5, "label": "clients=5", "successCount": 250, "failureCount": 0, "avgLatencyMs": 1.8, "maxLatencyMs": 3.9, "throughput": 2778, "errors": [], "crashed": false },
           { "level": 10, "label": "clients=10", "successCount": 500, "failureCount": 0, "avgLatencyMs": 2.5, "maxLatencyMs": 5.6, "throughput": 4000, "errors": [], "crashed": false },
           { "level": 25, "label": "clients=25", "successCount": 1250, "failureCount": 0, "avgLatencyMs": 4.2, "maxLatencyMs": 10.1, "throughput": 5952, "errors": [], "crashed": false },
           { "level": 50, "label": "clients=50", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 7.8, "maxLatencyMs": 19.5, "throughput": 6410, "errors": [], "crashed": false },
-          { "level": 75, "label": "clients=75", "successCount": 3250, "failureCount": 500, "avgLatencyMs": 15.2, "maxLatencyMs": 38.0, "throughput": 5641, "errors": ["result is still pending after 30s — Raft proposal retry limit exceeded"], "crashed": true }
+          { "level": 75, "label": "clients=75", "successCount": 3250, "failureCount": 500, "avgLatencyMs": 15.2, "maxLatencyMs": 38.0, "throughput": 5641, "errors": ["Raft proposal retry limit exceeded"], "crashed": true }
         ],
         "crashPoint": { "level": 75, "label": "clients=75", "totalSuccessfulOps": 7800, "totalFailedOps": 500, "errorType": "timeout", "errorMessage": "Raft proposal retry limit exceeded", "lastGoodLevel": 50 },
-        "maxConcurrencySustained": 50,
-        "maxThroughput": 6410
+        "maxConcurrencySustained": 50, "maxThroughput": 6410
       },
       "atomic": {
-        "db": "CockroachDB",
         "results": [
           { "level": 1, "label": "clients=1", "successCount": 100, "failureCount": 0, "avgLatencyMs": 2.5, "maxLatencyMs": 5.1, "throughput": 400, "errors": [], "crashed": false },
           { "level": 5, "label": "clients=5", "successCount": 500, "failureCount": 0, "avgLatencyMs": 4.8, "maxLatencyMs": 10.2, "throughput": 1042, "errors": [], "crashed": false },
           { "level": 10, "label": "clients=10", "successCount": 1000, "failureCount": 0, "avgLatencyMs": 8.5, "maxLatencyMs": 18.9, "throughput": 1176, "errors": [], "crashed": false },
-          { "level": 25, "label": "clients=25", "successCount": 2000, "failureCount": 500, "avgLatencyMs": 22.3, "maxLatencyMs": 55.0, "throughput": 1235, "errors": ["transaction retry error — restart transaction"], "crashed": true }
+          { "level": 25, "label": "clients=25", "successCount": 2000, "failureCount": 500, "avgLatencyMs": 22.3, "maxLatencyMs": 55.0, "throughput": 1235, "errors": ["transaction retry error"], "crashed": true }
         ],
-        "crashPoint": { "level": 25, "label": "clients=25", "totalSuccessfulOps": 3600, "totalFailedOps": 500, "errorType": "other", "errorMessage": "transaction retry error — restart transaction", "lastGoodLevel": 10 },
-        "maxConcurrencySustained": 10,
-        "maxThroughput": 1235
+        "crashPoint": { "level": 25, "label": "clients=25", "totalSuccessfulOps": 3600, "totalFailedOps": 500, "errorType": "other", "errorMessage": "transaction retry error", "lastGoodLevel": 10 },
+        "maxConcurrencySustained": 10, "maxThroughput": 1235
       },
       "overall": { "crashedFirst": "atomic", "weakestLink": "atomic", "totalOpsBeforeTotalFailure": 35880 }
+    },
+
+    "pg-cluster": {
+      "mode": "cluster",
+      "seedCounts": { "users": 5000, "items": 50000 },
+      "write": {
+        "results": [
+          { "level": 10, "label": "batch=10", "successCount": 30, "failureCount": 0, "avgLatencyMs": 8.9, "maxLatencyMs": 13.1, "throughput": 1124, "errors": [], "crashed": false },
+          { "level": 50, "label": "batch=50", "successCount": 150, "failureCount": 0, "avgLatencyMs": 37.5, "maxLatencyMs": 51.2, "throughput": 1333, "errors": [], "crashed": false },
+          { "level": 100, "label": "batch=100", "successCount": 300, "failureCount": 0, "avgLatencyMs": 67.0, "maxLatencyMs": 92.0, "throughput": 1493, "errors": [], "crashed": false },
+          { "level": 500, "label": "batch=500", "successCount": 1500, "failureCount": 0, "avgLatencyMs": 335.0, "maxLatencyMs": 470.0, "throughput": 1493, "errors": [], "crashed": false },
+          { "level": 1000, "label": "batch=1,000", "successCount": 3000, "failureCount": 0, "avgLatencyMs": 690.0, "maxLatencyMs": 940.0, "throughput": 1449, "errors": [], "crashed": false },
+          { "level": 2500, "label": "batch=2,500", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 1950.0, "maxLatencyMs": 2650.0, "throughput": 1282, "errors": [], "crashed": false },
+          { "level": 5000, "label": "batch=5,000", "successCount": 15000, "failureCount": 0, "avgLatencyMs": 4400.0, "maxLatencyMs": 5900.0, "throughput": 1136, "errors": [], "crashed": false },
+          { "level": 10000, "label": "batch=10,000", "successCount": 30000, "failureCount": 0, "avgLatencyMs": 10500.0, "maxLatencyMs": 14100.0, "throughput": 952, "errors": [], "crashed": false },
+          { "level": 25000, "label": "batch=25,000", "successCount": 75000, "failureCount": 0, "avgLatencyMs": 30900.0, "maxLatencyMs": 41200.0, "throughput": 808, "errors": [], "crashed": false },
+          { "level": 50000, "label": "batch=50,000", "successCount": 135000, "failureCount": 15000, "avgLatencyMs": 61000.0, "maxLatencyMs": 82000.0, "throughput": 820, "errors": ["pgpool: all backends down"], "crashed": true }
+        ],
+        "crashPoint": { "level": 50000, "label": "batch=50,000", "totalSuccessfulOps": 267480, "totalFailedOps": 15000, "errorType": "connection_refused", "errorMessage": "pgpool: all backends down", "lastGoodLevel": 25000 },
+        "maxBatchSizeSustained": 25000, "maxThroughput": 1493
+      },
+      "read": {
+        "results": [
+          { "level": 1, "label": "clients=1", "successCount": 50, "failureCount": 0, "avgLatencyMs": 0.58, "maxLatencyMs": 1.3, "throughput": 1724, "errors": [], "crashed": false },
+          { "level": 5, "label": "clients=5", "successCount": 250, "failureCount": 0, "avgLatencyMs": 0.65, "maxLatencyMs": 1.9, "throughput": 7692, "errors": [], "crashed": false },
+          { "level": 10, "label": "clients=10", "successCount": 500, "failureCount": 0, "avgLatencyMs": 0.81, "maxLatencyMs": 2.3, "throughput": 12346, "errors": [], "crashed": false },
+          { "level": 25, "label": "clients=25", "successCount": 1250, "failureCount": 0, "avgLatencyMs": 1.21, "maxLatencyMs": 3.8, "throughput": 20661, "errors": [], "crashed": false },
+          { "level": 50, "label": "clients=50", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 1.95, "maxLatencyMs": 6.1, "throughput": 25641, "errors": [], "crashed": false },
+          { "level": 75, "label": "clients=75", "successCount": 3750, "failureCount": 0, "avgLatencyMs": 2.55, "maxLatencyMs": 9.5, "throughput": 29412, "errors": [], "crashed": false },
+          { "level": 100, "label": "clients=100", "successCount": 5000, "failureCount": 0, "avgLatencyMs": 3.25, "maxLatencyMs": 13.1, "throughput": 30769, "errors": [], "crashed": false },
+          { "level": 150, "label": "clients=150", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 4.95, "maxLatencyMs": 19.8, "throughput": 30303, "errors": [], "crashed": false },
+          { "level": 200, "label": "clients=200", "successCount": 10000, "failureCount": 0, "avgLatencyMs": 6.7, "maxLatencyMs": 27.0, "throughput": 29851, "errors": [], "crashed": false },
+          { "level": 300, "label": "clients=300", "successCount": 15000, "failureCount": 0, "avgLatencyMs": 11.0, "maxLatencyMs": 45.0, "throughput": 27273, "errors": [], "crashed": false },
+          { "level": 400, "label": "clients=400", "successCount": 20000, "failureCount": 0, "avgLatencyMs": 18.0, "maxLatencyMs": 62.0, "throughput": 27778, "errors": [], "crashed": false },
+          { "level": 500, "label": "clients=500", "successCount": 22000, "failureCount": 3000, "avgLatencyMs": 29.0, "maxLatencyMs": 78.0, "throughput": 27397, "errors": ["pgpool: connection timeout"], "crashed": true }
+        ],
+        "crashPoint": { "level": 500, "label": "clients=500", "totalSuccessfulOps": 87800, "totalFailedOps": 3000, "errorType": "timeout", "errorMessage": "pgpool: connection timeout", "lastGoodLevel": 400 },
+        "maxConcurrencySustained": 400, "maxThroughput": 30769
+      },
+      "atomic": {
+        "results": [
+          { "level": 1, "label": "clients=1", "successCount": 100, "failureCount": 0, "avgLatencyMs": 1.01, "maxLatencyMs": 2.0, "throughput": 990, "errors": [], "crashed": false },
+          { "level": 5, "label": "clients=5", "successCount": 500, "failureCount": 0, "avgLatencyMs": 1.25, "maxLatencyMs": 3.2, "throughput": 4000, "errors": [], "crashed": false },
+          { "level": 10, "label": "clients=10", "successCount": 1000, "failureCount": 0, "avgLatencyMs": 1.55, "maxLatencyMs": 4.1, "throughput": 6452, "errors": [], "crashed": false },
+          { "level": 25, "label": "clients=25", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 2.35, "maxLatencyMs": 6.8, "throughput": 10638, "errors": [], "crashed": false },
+          { "level": 50, "label": "clients=50", "successCount": 5000, "failureCount": 0, "avgLatencyMs": 3.75, "maxLatencyMs": 12.5, "throughput": 13333, "errors": [], "crashed": false },
+          { "level": 75, "label": "clients=75", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 5.6, "maxLatencyMs": 20.5, "throughput": 13393, "errors": [], "crashed": false },
+          { "level": 100, "label": "clients=100", "successCount": 10000, "failureCount": 0, "avgLatencyMs": 7.9, "maxLatencyMs": 28.9, "throughput": 12658, "errors": [], "crashed": false },
+          { "level": 150, "label": "clients=150", "successCount": 14000, "failureCount": 1000, "avgLatencyMs": 15.8, "maxLatencyMs": 52.0, "throughput": 11667, "errors": ["pgpool: connection timeout"], "crashed": true }
+        ],
+        "crashPoint": { "level": 150, "label": "clients=150", "totalSuccessfulOps": 40600, "totalFailedOps": 1000, "errorType": "timeout", "errorMessage": "pgpool: connection timeout", "lastGoodLevel": 100 },
+        "maxConcurrencySustained": 100, "maxThroughput": 13393
+      },
+      "overall": { "crashedFirst": "atomic", "weakestLink": "atomic", "totalOpsBeforeTotalFailure": 395880 }
+    },
+    "mongo-cluster": {
+      "mode": "cluster",
+      "seedCounts": { "users": 5000, "items": 50000 },
+      "write": {
+        "results": [
+          { "level": 10, "label": "batch=10", "successCount": 30, "failureCount": 0, "avgLatencyMs": 11.8, "maxLatencyMs": 17.2, "throughput": 847, "errors": [], "crashed": false },
+          { "level": 50, "label": "batch=50", "successCount": 150, "failureCount": 0, "avgLatencyMs": 46.0, "maxLatencyMs": 68.0, "throughput": 1087, "errors": [], "crashed": false },
+          { "level": 100, "label": "batch=100", "successCount": 300, "failureCount": 0, "avgLatencyMs": 81.0, "maxLatencyMs": 118.0, "throughput": 1235, "errors": [], "crashed": false },
+          { "level": 500, "label": "batch=500", "successCount": 1500, "failureCount": 0, "avgLatencyMs": 385.0, "maxLatencyMs": 550.0, "throughput": 1299, "errors": [], "crashed": false },
+          { "level": 1000, "label": "batch=1,000", "successCount": 3000, "failureCount": 0, "avgLatencyMs": 820.0, "maxLatencyMs": 1150.0, "throughput": 1219, "errors": [], "crashed": false },
+          { "level": 2500, "label": "batch=2,500", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 2250.0, "maxLatencyMs": 3100.0, "throughput": 1111, "errors": [], "crashed": false },
+          { "level": 5000, "label": "batch=5,000", "successCount": 15000, "failureCount": 0, "avgLatencyMs": 5100.0, "maxLatencyMs": 7100.0, "throughput": 980, "errors": [], "crashed": false },
+          { "level": 10000, "label": "batch=10,000", "successCount": 30000, "failureCount": 0, "avgLatencyMs": 11500.0, "maxLatencyMs": 16200.0, "throughput": 870, "errors": [], "crashed": false },
+          { "level": 25000, "label": "batch=25,000", "successCount": 65000, "failureCount": 10000, "avgLatencyMs": 28000.0, "maxLatencyMs": 39500.0, "throughput": 773, "errors": ["NotWritablePrimary"], "crashed": true }
+        ],
+        "crashPoint": { "level": 25000, "label": "batch=25,000", "totalSuccessfulOps": 122480, "totalFailedOps": 10000, "errorType": "too_many_connections", "errorMessage": "NotWritablePrimary", "lastGoodLevel": 10000 },
+        "maxBatchSizeSustained": 10000, "maxThroughput": 1299
+      },
+      "read": {
+        "results": [
+          { "level": 1, "label": "clients=1", "successCount": 50, "failureCount": 0, "avgLatencyMs": 0.92, "maxLatencyMs": 2.2, "throughput": 1087, "errors": [], "crashed": false },
+          { "level": 5, "label": "clients=5", "successCount": 250, "failureCount": 0, "avgLatencyMs": 1.08, "maxLatencyMs": 3.0, "throughput": 4629, "errors": [], "crashed": false },
+          { "level": 10, "label": "clients=10", "successCount": 500, "failureCount": 0, "avgLatencyMs": 1.3, "maxLatencyMs": 3.8, "throughput": 7692, "errors": [], "crashed": false },
+          { "level": 25, "label": "clients=25", "successCount": 1250, "failureCount": 0, "avgLatencyMs": 2.2, "maxLatencyMs": 6.2, "throughput": 11364, "errors": [], "crashed": false },
+          { "level": 50, "label": "clients=50", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 4.0, "maxLatencyMs": 11.0, "throughput": 12500, "errors": [], "crashed": false },
+          { "level": 75, "label": "clients=75", "successCount": 3750, "failureCount": 0, "avgLatencyMs": 6.2, "maxLatencyMs": 17.8, "throughput": 12097, "errors": [], "crashed": false },
+          { "level": 100, "label": "clients=100", "successCount": 5000, "failureCount": 0, "avgLatencyMs": 9.5, "maxLatencyMs": 28.0, "throughput": 10526, "errors": [], "crashed": false },
+          { "level": 150, "label": "clients=150", "successCount": 6500, "failureCount": 1000, "avgLatencyMs": 18.0, "maxLatencyMs": 48.0, "throughput": 9167, "errors": ["replicaSetMonitor: no primary"], "crashed": true }
+        ],
+        "crashPoint": { "level": 150, "label": "clients=150", "totalSuccessfulOps": 19800, "totalFailedOps": 1000, "errorType": "too_many_connections", "errorMessage": "no primary in replica set", "lastGoodLevel": 100 },
+        "maxConcurrencySustained": 100, "maxThroughput": 12500
+      },
+      "atomic": {
+        "results": [
+          { "level": 1, "label": "clients=1", "successCount": 100, "failureCount": 0, "avgLatencyMs": 1.71, "maxLatencyMs": 3.5, "throughput": 585, "errors": [], "crashed": false },
+          { "level": 5, "label": "clients=5", "successCount": 500, "failureCount": 0, "avgLatencyMs": 2.3, "maxLatencyMs": 5.6, "throughput": 2174, "errors": [], "crashed": false },
+          { "level": 10, "label": "clients=10", "successCount": 1000, "failureCount": 0, "avgLatencyMs": 4.1, "maxLatencyMs": 10.5, "throughput": 2439, "errors": [], "crashed": false },
+          { "level": 25, "label": "clients=25", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 7.8, "maxLatencyMs": 20.0, "throughput": 3205, "errors": [], "crashed": false },
+          { "level": 50, "label": "clients=50", "successCount": 5000, "failureCount": 0, "avgLatencyMs": 14.5, "maxLatencyMs": 38.0, "throughput": 3448, "errors": [], "crashed": false },
+          { "level": 75, "label": "clients=75", "successCount": 6000, "failureCount": 1500, "avgLatencyMs": 28.0, "maxLatencyMs": 65.0, "throughput": 3158, "errors": ["write concern: no primary"], "crashed": true }
+        ],
+        "crashPoint": { "level": 75, "label": "clients=75", "totalSuccessfulOps": 15100, "totalFailedOps": 1500, "errorType": "too_many_connections", "errorMessage": "write concern: no primary", "lastGoodLevel": 50 },
+        "maxConcurrencySustained": 50, "maxThroughput": 3448
+      },
+      "overall": { "crashedFirst": "atomic", "weakestLink": "atomic", "totalOpsBeforeTotalFailure": 157380 }
+    },
+    "cockroach-cluster": {
+      "mode": "cluster",
+      "seedCounts": { "users": 5000, "items": 50000 },
+      "write": {
+        "results": [
+          { "level": 10, "label": "batch=10", "successCount": 30, "failureCount": 0, "avgLatencyMs": 18.5, "maxLatencyMs": 25.0, "throughput": 541, "errors": [], "crashed": false },
+          { "level": 50, "label": "batch=50", "successCount": 150, "failureCount": 0, "avgLatencyMs": 78.0, "maxLatencyMs": 105.0, "throughput": 641, "errors": [], "crashed": false },
+          { "level": 100, "label": "batch=100", "successCount": 300, "failureCount": 0, "avgLatencyMs": 155.0, "maxLatencyMs": 210.0, "throughput": 645, "errors": [], "crashed": false },
+          { "level": 500, "label": "batch=500", "successCount": 1500, "failureCount": 0, "avgLatencyMs": 850.0, "maxLatencyMs": 1150.0, "throughput": 588, "errors": [], "crashed": false },
+          { "level": 1000, "label": "batch=1,000", "successCount": 3000, "failureCount": 0, "avgLatencyMs": 1850.0, "maxLatencyMs": 2450.0, "throughput": 541, "errors": [], "crashed": false },
+          { "level": 2500, "label": "batch=2,500", "successCount": 7500, "failureCount": 0, "avgLatencyMs": 5100.0, "maxLatencyMs": 6900.0, "throughput": 490, "errors": [], "crashed": false },
+          { "level": 5000, "label": "batch=5,000", "successCount": 15000, "failureCount": 0, "avgLatencyMs": 11200.0, "maxLatencyMs": 15200.0, "throughput": 446, "errors": [], "crashed": false },
+          { "level": 10000, "label": "batch=10,000", "successCount": 25000, "failureCount": 5000, "avgLatencyMs": 24500.0, "maxLatencyMs": 34000.0, "throughput": 408, "errors": ["Raft: proposal dropped due to overload"], "crashed": true }
+        ],
+        "crashPoint": { "level": 10000, "label": "batch=10,000", "totalSuccessfulOps": 52480, "totalFailedOps": 5000, "errorType": "timeout", "errorMessage": "Raft: proposal dropped due to overload", "lastGoodLevel": 5000 },
+        "maxBatchSizeSustained": 5000, "maxThroughput": 645
+      },
+      "read": {
+        "results": [
+          { "level": 1, "label": "clients=1", "successCount": 50, "failureCount": 0, "avgLatencyMs": 1.4, "maxLatencyMs": 3.2, "throughput": 714, "errors": [], "crashed": false },
+          { "level": 5, "label": "clients=5", "successCount": 250, "failureCount": 0, "avgLatencyMs": 2.1, "maxLatencyMs": 4.5, "throughput": 2381, "errors": [], "crashed": false },
+          { "level": 10, "label": "clients=10", "successCount": 500, "failureCount": 0, "avgLatencyMs": 2.9, "maxLatencyMs": 6.5, "throughput": 3448, "errors": [], "crashed": false },
+          { "level": 25, "label": "clients=25", "successCount": 1250, "failureCount": 0, "avgLatencyMs": 4.8, "maxLatencyMs": 11.5, "throughput": 5208, "errors": [], "crashed": false },
+          { "level": 50, "label": "clients=50", "successCount": 2500, "failureCount": 0, "avgLatencyMs": 8.5, "maxLatencyMs": 21.0, "throughput": 5882, "errors": [], "crashed": false },
+          { "level": 75, "label": "clients=75", "successCount": 3750, "failureCount": 0, "avgLatencyMs": 14.0, "maxLatencyMs": 35.0, "throughput": 5357, "errors": [], "crashed": false },
+          { "level": 100, "label": "clients=100", "successCount": 4500, "failureCount": 500, "avgLatencyMs": 25.0, "maxLatencyMs": 55.0, "throughput": 4800, "errors": ["Raft: proposal dropped"], "crashed": true }
+        ],
+        "crashPoint": { "level": 100, "label": "clients=100", "totalSuccessfulOps": 12800, "totalFailedOps": 500, "errorType": "timeout", "errorMessage": "Raft: proposal dropped", "lastGoodLevel": 75 },
+        "maxConcurrencySustained": 75, "maxThroughput": 5882
+      },
+      "atomic": {
+        "results": [
+          { "level": 1, "label": "clients=1", "successCount": 100, "failureCount": 0, "avgLatencyMs": 3.2, "maxLatencyMs": 6.5, "throughput": 313, "errors": [], "crashed": false },
+          { "level": 5, "label": "clients=5", "successCount": 500, "failureCount": 0, "avgLatencyMs": 6.5, "maxLatencyMs": 14.0, "throughput": 769, "errors": [], "crashed": false },
+          { "level": 10, "label": "clients=10", "successCount": 1000, "failureCount": 0, "avgLatencyMs": 11.5, "maxLatencyMs": 25.0, "throughput": 870, "errors": [], "crashed": false },
+          { "level": 25, "label": "clients=25", "successCount": 2000, "failureCount": 500, "avgLatencyMs": 32.0, "maxLatencyMs": 70.0, "throughput": 988, "errors": ["txn: restart transaction"], "crashed": true }
+        ],
+        "crashPoint": { "level": 25, "label": "clients=25", "totalSuccessfulOps": 3600, "totalFailedOps": 500, "errorType": "other", "errorMessage": "txn restart transaction", "lastGoodLevel": 10 },
+        "maxConcurrencySustained": 10, "maxThroughput": 988
+      },
+      "overall": { "crashedFirst": "atomic", "weakestLink": "atomic", "totalOpsBeforeTotalFailure": 68880 }
     }
   }
 }

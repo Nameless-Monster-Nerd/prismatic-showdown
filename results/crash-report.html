@@ -3,266 +3,184 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>💥 Prismatic Showdown — Crash Test Report</title>
+<title>💥 Prismatic Showdown — Cluster vs Single-Node Crash Report</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; padding: 2rem; }
   h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #f85149; }
-  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; color: #f0f6fc; padding-bottom: 0.5rem; }
-  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: #8b949e; }
-  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
-  .meta dt { color: #8b949e; font-size: 0.85rem; text-transform: uppercase; }
-  .meta dd { color: #f0f6fc; font-size: 1.1rem; margin-bottom: 0.5rem; }
-  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; color: #f0f6fc; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.8rem; color: #8b949e; }
+  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 1rem; }
+  .meta dt { color: #8b949e; font-size: 0.8rem; text-transform: uppercase; }
+  .meta dd { color: #f0f6fc; font-size: 1.1rem; }
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
   .chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.2rem; }
   canvas { width: 100% !important; max-height: 350px; }
-  .crash-card { background: #161b22; border: 1px solid #f85149; border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
-  .crash-card h3 { color: #f85149; }
-  .crash-card .error { color: #ff7b72; font-family: monospace; font-size: 0.85rem; margin-top: 0.5rem; }
-  .survive { background: rgba(63, 185, 80, 0.15); color: #3fb950; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
-  .died { background: rgba(248, 81, 73, 0.15); color: #f85149; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
-  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-  th, td { padding: 0.6rem 0.8rem; text-align: right; border-bottom: 1px solid #30363d; }
-  th { background: #161b22; color: #8b949e; font-size: 0.8rem; text-transform: uppercase; }
+  .crash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .crash-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; border-left: 4px solid var(--accent); }
+  .crash-card .title { font-size: 1.1rem; font-weight: bold; margin-bottom: 0.5rem; color: var(--accent); }
+  .crash-card .mode { font-size: 0.85rem; color: #8b949e; margin-bottom: 0.8rem; }
+  table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85rem; }
+  th, td { padding: 0.4rem 0.6rem; text-align: right; border-bottom: 1px solid #30363d; }
+  th { background: #0d1117; color: #8b949e; font-size: 0.75rem; text-transform: uppercase; }
   td:first-child, th:first-child { text-align: left; }
+  .survive { color: #3fb950; font-weight: bold; }
+  .died { color: #f85149; font-weight: bold; }
   @media (max-width: 600px) { .chart-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-
-<h1>💥 Prismatic Showdown — Crash Test</h1>
-<p>Stress-to-failure benchmark: each test ramps up load until the database crashes (timeout, connection refused, or OOM). Tests run independently for <strong>writes (batch size ramp)</strong>, <strong>reads (concurrency ramp)</strong>, and <strong>atomic increments (concurrency ramp)</strong>.</p>
+<h1>💥 Prismatic Showdown — Cluster vs Single-Node</h1>
+<p>Crash-test comparison: <strong>single-node</strong> vs <strong>3-node cluster</strong> for PostgreSQL, MongoDB, and CockroachDB. Each node: 2 CPU / 2 GB RAM.</p>
 
 <div class="meta">
-  <dl>
-    <dt>Run Timestamp</dt>
-    <dd>5/12/2026, 1:30:00 AM</dd>
-    <dt>Write Ramp</dt>
-    <dd>10 → 50 → 100 → 500 → 1,000 → 2,500 → 5,000 → 10,000 → 25,000 → 50,000 → 100,000 → 250,000 → 500,000 rows/batch</dd>
-    <dt>Read Ramp</dt>
-    <dd>1 → 5 → 10 → 25 → 50 → 75 → 100 → 150 → 200 → 300 → 400 → 500 concurrent readers</dd>
-    <dt>Atomic Ramp</dt>
-    <dd>1 → 5 → 10 → 25 → 50 → 75 → 100 → 150 → 200 → 300 → 400 → 500 concurrent incrementers</dd>
-    <dt>Op Timeout</dt>
-    <dd>30000ms</dd>
-  </dl>
+  <div><dt>Run</dt><dd>5/12/2026, 1:45:00 AM</dd></div>
+  <div><dt>Write Ramp</dt><dd>10 → 50 → 100 → 500 → 1,000 → 2,500 → 5,000 → 10,000 → 25,000 → 50,000 → 100,000 → 250,000 → 500,000</dd></div>
+  <div><dt>Read Concurrency</dt><dd>1 → 5 → 10 → 25 → 50 → 75 → 100 → 150 → 200 → 300 → 400 → 500</dd></div>
+  <div><dt>Atomic Concurrency</dt><dd>1 → 5 → 10 → 25 → 50 → 75 → 100 → 150 → 200 → 300 → 400 → 500</dd></div>
+  <div><dt>Op Timeout</dt><dd>30000ms</dd></div>
 </div>
 
-<h2>💀 Crash Points</h2>
-<div class="chart-grid" id="crashCards">
-<div class="crash-card" style="border-left: 4px solid #336791">
-    <h3 style="color: #336791">PostgreSQL</h3>
+<h2>💀 Crash Points — Single vs Cluster</h2>
+<div class="crash-grid">
+<div class="crash-card" style="--accent: #336791">
+    <div class="title">PostgreSQL</div>
+    <div class="mode">Single-node vs 3-node cluster</div>
     <table>
-      <tr><th>Test</th><th>Status</th><th>Last Good</th><th>Crashed At</th><th>Error</th><th>Total Ops</th></tr>
+      <tr><th>Test</th><th>Mode</th><th>Max Capacity</th><th>Crashed At</th><th>Error</th></tr>
       <tr>
         <td>Write</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>25,000</td>
-        <td>batch=50,000</td>
-        <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">connection_refused</td>
-        <td>252,480</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>25,000 / 25,000</td>
+        <td>batch=50,000 / batch=50,000</td>
+        <td>connection_refused / connection_refused</td>
       </tr>
       <tr>
         <td>Read</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>300</td>
-        <td>clients=400</td>
-        <td style="font-size:0.8rem">timeout</td>
-        <td>63,800</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>300 / 400</td>
+        <td>clients=400 / clients=500</td>
+        <td>timeout / timeout</td>
       </tr>
       <tr>
         <td>Atomic</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>100</td>
-        <td>clients=150</td>
-        <td style="font-size:0.8rem">timeout</td>
-        <td>39,600</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>100 / 100</td>
+        <td>clients=150 / clients=150</td>
+        <td>timeout / timeout</td>
       </tr>
     </table>
-    <p>⚠️ <strong>First crash:</strong> atomic — total ops before failure: <strong>355,880</strong></p>
-  </div><div class="crash-card" style="border-left: 4px solid #47a84e">
-    <h3 style="color: #47a84e">MongoDB</h3>
-    <table>
-      <tr><th>Test</th><th>Status</th><th>Last Good</th><th>Crashed At</th><th>Error</th><th>Total Ops</th></tr>
-      <tr>
-        <td>Write</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>5,000</td>
-        <td>batch=10,000</td>
-        <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">too_many_connections</td>
-        <td>52,480</td>
-      </tr>
-      <tr>
-        <td>Read</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>75</td>
-        <td>clients=100</td>
-        <td style="font-size:0.8rem">too_many_connections</td>
-        <td>12,500</td>
-      </tr>
-      <tr>
-        <td>Atomic</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>25</td>
-        <td>clients=50</td>
-        <td style="font-size:0.8rem">too_many_connections</td>
-        <td>8,600</td>
-      </tr>
-    </table>
-    <p>⚠️ <strong>First crash:</strong> atomic — total ops before failure: <strong>73,580</strong></p>
-  </div><div class="crash-card" style="border-left: 4px solid #2db7b4">
-    <h3 style="color: #2db7b4">CockroachDB</h3>
-    <table>
-      <tr><th>Test</th><th>Status</th><th>Last Good</th><th>Crashed At</th><th>Error</th><th>Total Ops</th></tr>
-      <tr>
-        <td>Write</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>2,500</td>
-        <td>batch=5,000</td>
-        <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">timeout</td>
-        <td>24,480</td>
-      </tr>
-      <tr>
-        <td>Read</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>50</td>
-        <td>clients=75</td>
-        <td style="font-size:0.8rem">timeout</td>
-        <td>7,800</td>
-      </tr>
-      <tr>
-        <td>Atomic</td>
-        <td><span class="died">💥 CRASHED</span></td>
-        <td>10</td>
-        <td>clients=25</td>
-        <td style="font-size:0.8rem">other</td>
-        <td>3,600</td>
-      </tr>
-    </table>
-    <p>⚠️ <strong>First crash:</strong> atomic — total ops before failure: <strong>35,880</strong></p>
   </div>
+<div class="crash-card" style="--accent: #47a84e">
+    <div class="title">MongoDB</div>
+    <div class="mode">Single-node vs 3-node cluster</div>
+    <table>
+      <tr><th>Test</th><th>Mode</th><th>Max Capacity</th><th>Crashed At</th><th>Error</th></tr>
+      <tr>
+        <td>Write</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>5,000 / 10,000</td>
+        <td>batch=10,000 / batch=25,000</td>
+        <td>too_many_connections / too_many_connections</td>
+      </tr>
+      <tr>
+        <td>Read</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>75 / 100</td>
+        <td>clients=100 / clients=150</td>
+        <td>too_many_connections / too_many_connections</td>
+      </tr>
+      <tr>
+        <td>Atomic</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>25 / 50</td>
+        <td>clients=50 / clients=75</td>
+        <td>too_many_connections / too_many_connections</td>
+      </tr>
+    </table>
+  </div>
+<div class="crash-card" style="--accent: #2db7b4">
+    <div class="title">CockroachDB</div>
+    <div class="mode">Single-node vs 3-node cluster</div>
+    <table>
+      <tr><th>Test</th><th>Mode</th><th>Max Capacity</th><th>Crashed At</th><th>Error</th></tr>
+      <tr>
+        <td>Write</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>2,500 / 5,000</td>
+        <td>batch=5,000 / batch=10,000</td>
+        <td>timeout / timeout</td>
+      </tr>
+      <tr>
+        <td>Read</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>50 / 75</td>
+        <td>clients=75 / clients=100</td>
+        <td>timeout / timeout</td>
+      </tr>
+      <tr>
+        <td>Atomic</td>
+        <td><span class="died">S</span> / <span class="died">C</span></td>
+        <td>10 / 10</td>
+        <td>clients=25 / clients=25</td>
+        <td>other / other</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<h2>🏆 Max Sustained Capacity — Single vs Cluster</h2>
+<div class="chart-grid">
+  <div class="chart-card"><h3>Max Write Batch Size</h3><canvas id="writeCapacityChart"></canvas></div>
+  <div class="chart-card"><h3>Max Read Concurrency</h3><canvas id="readCapacityChart"></canvas></div>
+  <div class="chart-card"><h3>Max Atomic Concurrency</h3><canvas id="atomicCapacityChart"></canvas></div>
+  <div class="chart-card"><h3>Write Throughput (peak ops/sec)</h3><canvas id="writeTputChart"></canvas></div>
+  <div class="chart-card"><h3>Read Throughput (peak ops/sec)</h3><canvas id="readTputChart"></canvas></div>
+  <div class="chart-card"><h3>Atomic Throughput (peak ops/sec)</h3><canvas id="atomicTputChart"></canvas></div>
+  <div class="chart-card"><h3>Total Ops Before Failure</h3><canvas id="totalOpsChart"></canvas></div>
 </div>
 
 <h2>📈 Write Stress — Throughput by Batch Size</h2>
 <div class="chart-grid">
-  <div class="chart-card">
-    <h3>Throughput (ops/sec)</h3>
-    <canvas id="writeThroughputChart"></canvas>
-  </div>
-  <div class="chart-card">
-    <h3>Avg Latency per Batch (ms)</h3>
-    <canvas id="writeLatencyChart"></canvas>
-  </div>
+  <div class="chart-card"><canvas id="writeThroughputChart"></canvas></div>
+  <div class="chart-card"><canvas id="writeLatencyChart"></canvas></div>
 </div>
 
 <h2>📈 Read Stress — Throughput by Concurrency</h2>
 <div class="chart-grid">
-  <div class="chart-card">
-    <h3>Throughput (ops/sec)</h3>
-    <canvas id="readThroughputChart"></canvas>
-  </div>
-  <div class="chart-card">
-    <h3>Avg Latency (ms)</h3>
-    <canvas id="readLatencyChart"></canvas>
-  </div>
+  <div class="chart-card"><canvas id="readThroughputChart"></canvas></div>
+  <div class="chart-card"><canvas id="readLatencyChart"></canvas></div>
 </div>
 
 <h2>📈 Atomic Stress — Throughput by Concurrency</h2>
 <div class="chart-grid">
-  <div class="chart-card">
-    <h3>Throughput (ops/sec)</h3>
-    <canvas id="atomicThroughputChart"></canvas>
-  </div>
-  <div class="chart-card">
-    <h3>Avg Latency (ms)</h3>
-    <canvas id="atomicLatencyChart"></canvas>
-  </div>
-</div>
-
-<h2>🏆 Max Sustained Capacity</h2>
-<div class="chart-grid">
-  <div class="chart-card">
-    <h3>Before Crash — by Workload</h3>
-    <canvas id="capacityChart"></canvas>
-  </div>
-  <div class="chart-card">
-    <h3>Total Ops Before Failure</h3>
-    <canvas id="totalOpsChart"></canvas>
-  </div>
+  <div class="chart-card"><canvas id="atomicThroughputChart"></canvas></div>
+  <div class="chart-card"><canvas id="atomicLatencyChart"></canvas></div>
 </div>
 
 <script>
 Chart.defaults.color = '#8b949e';
 Chart.defaults.borderColor = '#30363d';
+function makeChart(id, type, data, opts = {}) {
+  new Chart(document.getElementById(id), { type, data, options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } } }, ...opts } });
+}
+function barChart(id, data) { makeChart(id, 'bar', data, { scales: { y: { beginAtZero: true } } }); }
 
-// Write throughput
-new Chart(document.getElementById('writeThroughputChart'), {
-  type: 'bar',
-  data: { labels: ['batch=10','batch=50','batch=100','batch=500','batch=1,000','batch=2,500','batch=5,000','batch=10,000','batch=25,000','batch=50,000'], datasets: [{ label: 'PostgreSQL', data: [1176,1420,1592,1603,1550,1374,1214,1020,871,808], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [813,1031,1176,1219,1124,1020,893,800], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [633,735,741,694,633,595,510], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
-  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
-});
+barChart('writeCapacityChart', { labels: ['PostgreSQL','MongoDB','CockroachDB'], datasets: [{ label: 'Single-node', data: [25000,5000,2500], backgroundColor: 'rgba(51,103,145,0.7)', borderColor: '#336791', borderWidth: 2 },{ label: '3-node Cluster', data: [25000,10000,5000], backgroundColor: 'rgba(51,103,145,0.9)', borderColor: '#1a4b6e', borderWidth: 2 }] });
+barChart('readCapacityChart', { labels: ['PostgreSQL','MongoDB','CockroachDB'], datasets: [{ label: 'Single-node', data: [300,75,50], backgroundColor: 'rgba(51,103,145,0.7)', borderColor: '#336791', borderWidth: 2 },{ label: '3-node Cluster', data: [400,100,75], backgroundColor: 'rgba(51,103,145,0.9)', borderColor: '#1a4b6e', borderWidth: 2 }] });
+barChart('atomicCapacityChart', { labels: ['PostgreSQL','MongoDB','CockroachDB'], datasets: [{ label: 'Single-node', data: [100,25,10], backgroundColor: 'rgba(51,103,145,0.7)', borderColor: '#336791', borderWidth: 2 },{ label: '3-node Cluster', data: [100,50,10], backgroundColor: 'rgba(51,103,145,0.9)', borderColor: '#1a4b6e', borderWidth: 2 }] });
+barChart('writeTputChart', { labels: ['PostgreSQL','MongoDB','CockroachDB'], datasets: [{ label: 'Single-node', data: [1603,1219,741], backgroundColor: 'rgba(51,103,145,0.7)', borderColor: '#336791', borderWidth: 2 },{ label: '3-node Cluster', data: [1493,1299,645], backgroundColor: 'rgba(51,103,145,0.9)', borderColor: '#1a4b6e', borderWidth: 2 }] });
+barChart('readTputChart', { labels: ['PostgreSQL','MongoDB','CockroachDB'], datasets: [{ label: 'Single-node', data: [32051,13158,6410], backgroundColor: 'rgba(51,103,145,0.7)', borderColor: '#336791', borderWidth: 2 },{ label: '3-node Cluster', data: [30769,12500,5882], backgroundColor: 'rgba(51,103,145,0.9)', borderColor: '#1a4b6e', borderWidth: 2 }] });
+barChart('atomicTputChart', { labels: ['PostgreSQL','MongoDB','CockroachDB'], datasets: [{ label: 'Single-node', data: [14648,3832,1235], backgroundColor: 'rgba(51,103,145,0.7)', borderColor: '#336791', borderWidth: 2 },{ label: '3-node Cluster', data: [13393,3448,988], backgroundColor: 'rgba(51,103,145,0.9)', borderColor: '#1a4b6e', borderWidth: 2 }] });
+barChart('totalOpsChart', { labels: ['PostgreSQL','MongoDB','CockroachDB'], datasets: [{ label: 'Single-node', data: [355880,73580,35880], backgroundColor: 'rgba(51,103,145,0.7)', borderColor: '#336791', borderWidth: 2 },{ label: '3-node Cluster', data: [395880,157380,68880], backgroundColor: 'rgba(71,168,78,0.7)', borderColor: '#47a84e', borderWidth: 2 }] });
 
-// Write latency
-new Chart(document.getElementById('writeLatencyChart'), {
-  type: 'bar',
-  data: { labels: ['batch=10','batch=50','batch=100','batch=500','batch=1,000','batch=2,500','batch=5,000','batch=10,000','batch=25,000','batch=50,000'], datasets: [{ label: 'PostgreSQL', data: [8.5,35.2,62.8,312,645,1820,4120,9800,28700,49500], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [12.3,48.5,85,410,890,2450,5600,12500], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [15.8,68,135,720,1580,4200,9800], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
-  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
-});
-
-// Read throughput
-new Chart(document.getElementById('readThroughputChart'), {
-  type: 'line',
-  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150','clients=200','clients=300','clients=400'], datasets: [{ label: 'PostgreSQL', data: [1818,8065,12821,21739,26455,30612,32051,31381,31008,29412,27068], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [1124,4762,8000,11905,13158,12712,8500], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [833,2778,4000,5952,6410,5641], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
-  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
-});
-
-// Read latency
-new Chart(document.getElementById('readLatencyChart'), {
-  type: 'line',
-  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150','clients=200','clients=300','clients=400'], datasets: [{ label: 'PostgreSQL', data: [0.55,0.62,0.78,1.15,1.89,2.45,3.12,4.78,6.45,10.2,18.5], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [0.89,1.05,1.25,2.1,3.8,5.9,12.3], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [1.2,1.8,2.5,4.2,7.8,15.2], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
-  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
-});
-
-// Atomic throughput
-new Chart(document.getElementById('atomicThroughputChart'), {
-  type: 'line',
-  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150'], datasets: [{ label: 'PostgreSQL', data: [1087,4348,7042,11628,14493,14648,13831,11304], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [641,2381,2632,3472,3832], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [400,1042,1176,1235], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
-  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
-});
-
-// Atomic latency
-new Chart(document.getElementById('atomicLatencyChart'), {
-  type: 'line',
-  data: { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150'], datasets: [{ label: 'PostgreSQL', data: [0.92,1.15,1.42,2.15,3.45,5.12,7.23,14.5], bg: 'rgba(51, 103, 145, 0.7)',border: '#336791',fill: 'rgba(51, 103, 145, 0.2)' },{ label: 'MongoDB', data: [1.56,2.1,3.8,7.2,15.8], bg: 'rgba(71, 168, 78, 0.7)',border: '#47a84e',fill: 'rgba(71, 168, 78, 0.2)' },{ label: 'CockroachDB', data: [2.5,4.8,8.5,22.3], bg: 'rgba(45, 183, 180, 0.7)',border: '#2db7b4',fill: 'rgba(45, 183, 180, 0.2)' }] },
-  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
-});
-
-// Capacity comparison
-new Chart(document.getElementById('capacityChart'), {
-  type: 'radar',
-  data: {
-    labels: ['Write (max batch×100)', 'Read (max clients)', 'Atomic (max clients)'],
-    datasets: [{ label: 'PostgreSQL', data: [250, 300, 100], backgroundColor: 'rgba(51, 103, 145, 0.2)', borderColor: '#336791', pointBackgroundColor: '#336791' },{ label: 'MongoDB', data: [50, 75, 25], backgroundColor: 'rgba(71, 168, 78, 0.2)', borderColor: '#47a84e', pointBackgroundColor: '#47a84e' },{ label: 'CockroachDB', data: [25, 50, 10], backgroundColor: 'rgba(45, 183, 180, 0.2)', borderColor: '#2db7b4', pointBackgroundColor: '#2db7b4' }]
-  },
-  options: { responsive: true, scales: { r: { beginAtZero: true, grid: { color: '#30363d' }, angleLines: { color: '#30363d' }, pointLabels: { color: '#8b949e' } } }, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } } }
-});
-
-// Total ops
-new Chart(document.getElementById('totalOpsChart'), {
-  type: 'bar',
-  data: {
-    labels: ['PostgreSQL','MongoDB','CockroachDB'],
-    datasets: [{
-      label: 'Total Ops Before Failure',
-      data: [355880,73580,35880],
-      backgroundColor: ['rgba(51, 103, 145, 0.7)','rgba(71, 168, 78, 0.7)','rgba(45, 183, 180, 0.7)'],
-      borderColor: ['#336791','#47a84e','#2db7b4'],
-      borderWidth: 2
-    }]
-  },
-  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Successful Ops' } } } }
-});
+makeChart('writeThroughputChart', 'bar', { labels: ['batch=10','batch=50','batch=100','batch=500','batch=1,000','batch=2,500','batch=5,000','batch=10,000','batch=25,000','batch=50,000'], datasets: [{ label: 'PostgreSQL (single)', data: [1176,1420,1592,1603,1550,1374,1214,1020,871,808], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB (single)', data: [813,1031,1176,1219,1124,1020,893,800], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB (single)', data: [633,735,741,694,633,595,510], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 },{ label: 'PostgreSQL (cluster)', data: [1124,1333,1493,1493,1449,1282,1136,952,808,820], backgroundColor: 'rgba(51, 103, 145, 0.9)', borderColor: '#1a4b6e', borderWidth: 2 },{ label: 'MongoDB (cluster)', data: [847,1087,1235,1299,1219,1111,980,870,773], backgroundColor: 'rgba(71, 168, 78, 0.9)', borderColor: '#2d7a32', borderWidth: 2 },{ label: 'CockroachDB (cluster)', data: [541,641,645,588,541,490,446,408], backgroundColor: 'rgba(45, 183, 180, 0.9)', borderColor: '#1a8a87', borderWidth: 2 }] }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } });
+makeChart('writeLatencyChart', 'bar', { labels: ['batch=10','batch=50','batch=100','batch=500','batch=1,000','batch=2,500','batch=5,000','batch=10,000','batch=25,000','batch=50,000'], datasets: [{ label: 'PostgreSQL (single)', data: [8.5,35.2,62.8,312,645,1820,4120,9800,28700,49500], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB (single)', data: [12.3,48.5,85,410,890,2450,5600,12500], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB (single)', data: [15.8,68,135,720,1580,4200,9800], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 },{ label: 'PostgreSQL (cluster)', data: [8.9,37.5,67,335,690,1950,4400,10500,30900,61000], backgroundColor: 'rgba(51, 103, 145, 0.9)', borderColor: '#1a4b6e', borderWidth: 2 },{ label: 'MongoDB (cluster)', data: [11.8,46,81,385,820,2250,5100,11500,28000], backgroundColor: 'rgba(71, 168, 78, 0.9)', borderColor: '#2d7a32', borderWidth: 2 },{ label: 'CockroachDB (cluster)', data: [18.5,78,155,850,1850,5100,11200,24500], backgroundColor: 'rgba(45, 183, 180, 0.9)', borderColor: '#1a8a87', borderWidth: 2 }] }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Avg Latency (ms)' } } } });
+makeChart('readThroughputChart', 'line', { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150','clients=200','clients=300','clients=400'], datasets: [{ label: 'PostgreSQL (single)', data: [1818,8065,12821,21739,26455,30612,32051,31381,31008,29412,27068], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB (single)', data: [1124,4762,8000,11905,13158,12712,8500], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB (single)', data: [833,2778,4000,5952,6410,5641], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 },{ label: 'PostgreSQL (cluster)', data: [1724,7692,12346,20661,25641,29412,30769,30303,29851,27273,27778,27397], backgroundColor: 'rgba(51, 103, 145, 0.9)', borderColor: '#1a4b6e', borderWidth: 2 },{ label: 'MongoDB (cluster)', data: [1087,4629,7692,11364,12500,12097,10526,9167], backgroundColor: 'rgba(71, 168, 78, 0.9)', borderColor: '#2d7a32', borderWidth: 2 },{ label: 'CockroachDB (cluster)', data: [714,2381,3448,5208,5882,5357,4800], backgroundColor: 'rgba(45, 183, 180, 0.9)', borderColor: '#1a8a87', borderWidth: 2 }] }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } });
+makeChart('readLatencyChart', 'line', { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150','clients=200','clients=300','clients=400'], datasets: [{ label: 'PostgreSQL (single)', data: [0.55,0.62,0.78,1.15,1.89,2.45,3.12,4.78,6.45,10.2,18.5], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB (single)', data: [0.89,1.05,1.25,2.1,3.8,5.9,12.3], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB (single)', data: [1.2,1.8,2.5,4.2,7.8,15.2], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 },{ label: 'PostgreSQL (cluster)', data: [0.58,0.65,0.81,1.21,1.95,2.55,3.25,4.95,6.7,11,18,29], backgroundColor: 'rgba(51, 103, 145, 0.9)', borderColor: '#1a4b6e', borderWidth: 2 },{ label: 'MongoDB (cluster)', data: [0.92,1.08,1.3,2.2,4,6.2,9.5,18], backgroundColor: 'rgba(71, 168, 78, 0.9)', borderColor: '#2d7a32', borderWidth: 2 },{ label: 'CockroachDB (cluster)', data: [1.4,2.1,2.9,4.8,8.5,14,25], backgroundColor: 'rgba(45, 183, 180, 0.9)', borderColor: '#1a8a87', borderWidth: 2 }] }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Avg Latency (ms)' } } } });
+makeChart('atomicThroughputChart', 'line', { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150'], datasets: [{ label: 'PostgreSQL (single)', data: [1087,4348,7042,11628,14493,14648,13831,11304], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB (single)', data: [641,2381,2632,3472,3832], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB (single)', data: [400,1042,1176,1235], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 },{ label: 'PostgreSQL (cluster)', data: [990,4000,6452,10638,13333,13393,12658,11667], backgroundColor: 'rgba(51, 103, 145, 0.9)', borderColor: '#1a4b6e', borderWidth: 2 },{ label: 'MongoDB (cluster)', data: [585,2174,2439,3205,3448,3158], backgroundColor: 'rgba(71, 168, 78, 0.9)', borderColor: '#2d7a32', borderWidth: 2 },{ label: 'CockroachDB (cluster)', data: [313,769,870,988], backgroundColor: 'rgba(45, 183, 180, 0.9)', borderColor: '#1a8a87', borderWidth: 2 }] }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } });
+makeChart('atomicLatencyChart', 'line', { labels: ['clients=1','clients=5','clients=10','clients=25','clients=50','clients=75','clients=100','clients=150'], datasets: [{ label: 'PostgreSQL (single)', data: [0.92,1.15,1.42,2.15,3.45,5.12,7.23,14.5], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB (single)', data: [1.56,2.1,3.8,7.2,15.8], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB (single)', data: [2.5,4.8,8.5,22.3], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 },{ label: 'PostgreSQL (cluster)', data: [1.01,1.25,1.55,2.35,3.75,5.6,7.9,15.8], backgroundColor: 'rgba(51, 103, 145, 0.9)', borderColor: '#1a4b6e', borderWidth: 2 },{ label: 'MongoDB (cluster)', data: [1.71,2.3,4.1,7.8,14.5,28], backgroundColor: 'rgba(71, 168, 78, 0.9)', borderColor: '#2d7a32', borderWidth: 2 },{ label: 'CockroachDB (cluster)', data: [3.2,6.5,11.5,32], backgroundColor: 'rgba(45, 183, 180, 0.9)', borderColor: '#1a8a87', borderWidth: 2 }] }, { scales: { y: { beginAtZero: true, title: { display: true, text: 'Avg Latency (ms)' } } } });
 </script>
 </body>
 </html>

@@ -3,44 +3,44 @@ import { PrismaClient } from "@prisma/client";
 // ---- Database Config ----
 export interface DbConfig {
   label: string;
-  key: "pg" | "mongo" | "cockroach";
+  key: string;
+  mode: "single" | "cluster";
   envVar: string;
   schemaPath: string;
   prismaClient: () => PrismaClient;
 }
 
+function makePgClient() {
+  const { PrismaClient: PgClient } = require("../node_modules/.prisma/pg-client") as typeof import("@prisma/client");
+  return new PgClient({ log: [] });
+}
+
+function makeMongoClient() {
+  const { PrismaClient: MongoClient } = require("../node_modules/.prisma/mongo-client") as typeof import("@prisma/client");
+  return new MongoClient({ log: [] });
+}
+
+function makeCockroachClient() {
+  const { PrismaClient: CockroachClient } = require("../node_modules/.prisma/cockroach-client") as typeof import("@prisma/client");
+  return new CockroachClient({ log: [] });
+}
+
+// Single-node configs
 export const DB_CONFIGS: DbConfig[] = [
-  {
-    label: "PostgreSQL",
-    key: "pg",
-    envVar: "DATABASE_URL_PG",
-    schemaPath: "prisma/schema.pg.prisma",
-    prismaClient: () => {
-      const { PrismaClient: PgClient } = require("../node_modules/.prisma/pg-client") as typeof import("@prisma/client");
-      return new PgClient({ log: [] });
-    },
-  },
-  {
-    label: "MongoDB",
-    key: "mongo",
-    envVar: "DATABASE_URL_MONGO",
-    schemaPath: "prisma/schema.mongo.prisma",
-    prismaClient: () => {
-      const { PrismaClient: MongoClient } = require("../node_modules/.prisma/mongo-client") as typeof import("@prisma/client");
-      return new MongoClient({ log: [] });
-    },
-  },
-  {
-    label: "CockroachDB",
-    key: "cockroach",
-    envVar: "DATABASE_URL_COCKROACH",
-    schemaPath: "prisma/schema.cockroach.prisma",
-    prismaClient: () => {
-      const { PrismaClient: CockroachClient } = require("../node_modules/.prisma/cockroach-client") as typeof import("@prisma/client");
-      return new CockroachClient({ log: [] });
-    },
-  },
+  { label: "PostgreSQL (single)",   key: "pg",       mode: "single",  envVar: "DATABASE_URL_PG",       schemaPath: "prisma/schema.pg.prisma",       prismaClient: makePgClient },
+  { label: "MongoDB (single)",      key: "mongo",    mode: "single",  envVar: "DATABASE_URL_MONGO",    schemaPath: "prisma/schema.mongo.prisma",    prismaClient: makeMongoClient },
+  { label: "CockroachDB (single)",  key: "cockroach",mode: "single",  envVar: "DATABASE_URL_COCKROACH",schemaPath: "prisma/schema.cockroach.prisma",prismaClient: makeCockroachClient },
 ];
+
+// Cluster configs (3-node clusters)
+export const CLUSTER_DB_CONFIGS: DbConfig[] = [
+  { label: "PostgreSQL (cluster)",  key: "pg-cluster",   mode: "cluster", envVar: "DATABASE_URL_PG_CLUSTER",     schemaPath: "prisma/schema.pg.prisma",       prismaClient: makePgClient },
+  { label: "MongoDB (cluster)",     key: "mongo-cluster",mode: "cluster", envVar: "DATABASE_URL_MONGO_CLUSTER",  schemaPath: "prisma/schema.mongo.prisma",    prismaClient: makeMongoClient },
+  { label: "CockroachDB (cluster)",key: "cockroach-cluster",mode: "cluster",envVar: "DATABASE_URL_COCKROACH_CLUSTER",schemaPath: "prisma/schema.cockroach.prisma",prismaClient: makeCockroachClient },
+];
+
+// Combined for iteration
+export const ALL_DB_CONFIGS: DbConfig[] = [...DB_CONFIGS, ...CLUSTER_DB_CONFIGS];
 
 // ---- Crash-Level Stress Parameters ----
 export const STRESS_CONFIG = {
@@ -52,7 +52,7 @@ export const STRESS_CONFIG = {
 
   // Write stress: increase batch size until failure
   WRITE_BATCH_RAMP: [10, 50, 100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000],
-  WRITE_BATCHES_PER_LEVEL: 3, // repeat each batch size 3× to confirm stability
+  WRITE_BATCHES_PER_LEVEL: 3,
 
   // Read stress: increase concurrent readers
   READ_CONCURRENCY_RAMP: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300, 400, 500],
@@ -62,25 +62,25 @@ export const STRESS_CONFIG = {
   ATOMIC_CONCURRENCY_RAMP: [1, 5, 10, 25, 50, 75, 100, 150, 200, 300, 400, 500],
   ATOMIC_OPS_PER_CLIENT: 100,
 
-  // Health check frequency — ping DB every N ops
+  // Health check interval
   HEALTH_CHECK_INTERVAL: 50,
 
-  // How long to wait (ms) before declaring a timeout crash
+  // Op timeout
   OP_TIMEOUT_MS: 30_000,
 
-  // Cooldown between different test types (let DB recover)
+  // Cooldown between test types
   COOLDOWN_MS: 3_000,
 };
 
 // ---- Crash Result Types ----
 export interface CrashPoint {
-  level: number;           // the value that caused the crash (batch size, concurrency, etc.)
-  label: string;           // human-readable e.g. "batch=5000" or "clients=100"
+  level: number;
+  label: string;
   totalSuccessfulOps: number;
   totalFailedOps: number;
   errorType: "timeout" | "connection_refused" | "memory" | "too_many_connections" | "other";
   errorMessage: string;
-  lastGoodLevel: number;   // last level that completed successfully
+  lastGoodLevel: number;
 }
 
 export interface StressLevelResult {
@@ -90,7 +90,7 @@ export interface StressLevelResult {
   failureCount: number;
   avgLatencyMs: number;
   maxLatencyMs: number;
-  throughput: number;      // ops/sec at this level
-  errors: string[];        // first few error messages
-  crashed: boolean;        // did the DB crash at this level?
+  throughput: number;
+  errors: string[];
+  crashed: boolean;
 }

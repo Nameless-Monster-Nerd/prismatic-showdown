@@ -1,10 +1,10 @@
-import { STRESS_CONFIG, DB_CONFIGS } from "./config.js";
+import { STRESS_CONFIG, ALL_DB_CONFIGS } from "./config.js";
 import { loadDotEnv, generateItemTag } from "./utils.js";
 import chalk from "chalk";
 
 loadDotEnv();
 
-async function seedDb(cfg: (typeof DB_CONFIGS)[number]) {
+async function seedDb(cfg: (typeof ALL_DB_CONFIGS)[number]) {
   const url = process.env[cfg.envVar];
   if (!url) {
     console.log(chalk.yellow(`  ⏭️  ${cfg.label}: no ${cfg.envVar} set, skipping`));
@@ -32,7 +32,7 @@ async function seedDb(cfg: (typeof DB_CONFIGS)[number]) {
         bio: "Benchmark user for crash testing".repeat(5).slice(0, 200),
         score: Math.floor(Math.random() * 1_000_000),
         active: Math.random() > 0.2,
-        metadata: JSON.stringify({ tier: idx % 5, region: ["us", "eu", "ap"][idx % 3] }),
+        metadata: cfg.mode === "single" ? JSON.stringify({ tier: idx % 5, region: ["us", "eu", "ap"][idx % 3] }) : { tier: idx % 5, region: ["us", "eu", "ap"][idx % 3] },
       };
     });
 
@@ -70,11 +70,11 @@ async function seedDb(cfg: (typeof DB_CONFIGS)[number]) {
 }
 
 async function main() {
-  console.log(chalk.bold("\n══════════════════════════════════"));
+  console.log(chalk.bold("\n══════════════════════════════════════"));
   console.log(chalk.bold("  🌱 PRISMATIC SHOWDOWN — SEED"));
-  console.log(chalk.bold("══════════════════════════════════\n"));
+  console.log(chalk.bold("══════════════════════════════════════\n"));
 
-  for (const cfg of DB_CONFIGS) {
+  for (const cfg of ALL_DB_CONFIGS) {
     await seedDb(cfg);
   }
 
