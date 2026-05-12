@@ -1,138 +1,131 @@
-import { BENCH_CONFIG } from "./config.js";
-import { timed, percentiles, formatOps } from "./utils.js";
+import { STRESS_CONFIG, StressLevelResult, CrashPoint } from "./config.js";
+import { timedWithTimeout, healthCheck, classifyError, formatOps, sleep } from "./utils.js";
 import chalk from "chalk";
 
-export interface AtomicResult {
+export interface AtomicCrashReport {
   db: string;
-  incrementMs: { p50: number; p95: number; p99: number; mean: number; min: number; max: number };
-  incrementOps: number;
-  conditionalUpdateMs: { p50: number; p95: number; p99: number; mean: number; min: number; max: number };
-  conditionalUpdateOps: number;
-  concurrentResults: {
-    clients: number;
-    totalOps: number;
-    totalMs: number;
-    throughput: number;
-    avgLatencyMs: number;
-  }[];
+  results: StressLevelResult[];
+  crashPoint: CrashPoint | null;
+  maxConcurrencySustained: number;
+  maxThroughput: number;
 }
 
-export async function runAtomicBenchmark(prisma: any, dbLabel: string): Promise<AtomicResult> {
-  console.log(chalk.cyan(`\n  ── Atomic Update Benchmarks ──`));
+export async function runAtomicCrashTest(prisma: any, dbLabel: string): Promise<AtomicCrashReport> {
+  console.log(chalk.cyan(`\n  ── ATOMIC CRASH TEST ──`));
 
-  // ── Atomic Increment ──
-  // Ensure counter row exists
-  await prisma.counter.upsert({
-    where: { id: 1 },
-    update: {},
-    create: { id: 1, value: 0 },
-  });
+  const results: StressLevelResult[] = [];
+  let crashed = false;
+  let maxThroughput = 0;
+  let maxConcurrencySustained = 0;
 
-  const incrementLatencies: number[] = [];
-  const incIter = 500;
+  for (const concurrency of STRESS_CONFIG.ATOMIC_CONCURRENCY_RAMP) {
+    if (crashed) break;
 
-  for (let i = 0; i < BENCH_CONFIG.WARMUP; i++) {
-    await prisma.counter.update({ where: { id: 1 }, data: { value: { increment: 1 } } });
-  }
+    const label = `clients=${concurrency}`;
+    process.stdout.write(chalk.gray(`\n    ⏳ ${label} ... `));
 
-  for (let i = 0; i < incIter; i++) {
-    const { durationMs } = await timed(() =>
-      prisma.counter.update({ where: { id: 1 }, data: { value: { increment: 1 } } })
-    );
-    incrementLatencies.push(durationMs);
-  }
+    // Fresh counter for each level so we don't fight with residual locks
+    const counterId = Date.now() + Math.floor(Math.random() * 1000000);
+    try {
+      await prisma.counter.create({ data: { id: counterId, value: 0 } });
+    } catch {
+      await prisma.counter.upsert({
+        where: { id: counterId },
+        update: { value: 0 },
+        create: { id: counterId, value: 0 },
+      });
+    }
 
-  incrementLatencies.sort((a, b) => a - b);
-  const incStats = percentiles(incrementLatencies);
-  const incOps = incStats.mean > 0 ? Math.round(1000 / (incStats.mean / 1000)) : 0;
+    let successCount = 0;
+    let failureCount = 0;
+    let totalLatency = 0;
+    let maxLat = 0;
+    const errors: string[] = [];
 
-  console.log(chalk.gray(`    Atomic increment (${incIter} ops):`));
-  console.log(`      p50=${incStats.p50.toFixed(2)}ms  p95=${incStats.p95.toFixed(2)}ms  p99=${incStats.p99.toFixed(2)}ms  avg=${incStats.mean.toFixed(2)}ms`);
-  console.log(`      Throughput: ~${formatOps(incOps)}`);
+    const opsPerClient = STRESS_CONFIG.ATOMIC_OPS_PER_CLIENT;
 
-  // ── Conditional Update (optimistic CAS: only update if version matches) ──
-  const casLatencies: number[] = [];
-  const casIter = 500;
-
-  // Create a dedicated CAS user
-  const casUser = await prisma.user.create({
-    data: {
-      email: `cas_bench_${Date.now()}@bench.com`,
-      name: "CAS_Bench",
-      score: 0,
-      version: 1,
-    },
-  });
-
-  let currentVersion = casUser.version;
-
-  for (let i = 0; i < casIter; i++) {
-    const timedResult = await timed(() =>
-      prisma.user.updateMany({
-        where: { id: casUser.id, version: currentVersion },
-        data: { score: { increment: 1 }, version: { increment: 1 } },
-      })
-    );
-    const updateResult = timedResult.result as { count: number };
-    const durationMs = timedResult.durationMs;
-    if (updateResult.count > 0) currentVersion++;
-    casLatencies.push(durationMs);
-  }
-
-  casLatencies.sort((a, b) => a - b);
-  const casStats = percentiles(casLatencies);
-  const casOps = casStats.mean > 0 ? Math.round(1000 / (casStats.mean / 1000)) : 0;
-
-  console.log(chalk.gray(`    CAS optimistic update (version check, ${casIter} ops):`));
-  console.log(`      p50=${casStats.p50.toFixed(2)}ms  p95=${casStats.p95.toFixed(2)}ms  p99=${casStats.p99.toFixed(2)}ms  avg=${casStats.mean.toFixed(2)}ms`);
-  console.log(`      Throughput: ~${formatOps(casOps)}`);
-
-  // ── Concurrent Atomic Updates (race test) ──
-  const concurrentResults: AtomicResult["concurrentResults"] = [];
-
-  for (const clientCount of BENCH_CONFIG.ATOMIC_CONCURRENCY) {
-    const opsPerClient = BENCH_CONFIG.ATOMIC_OPS_PER_CLIENT;
-    const totalOps = clientCount * opsPerClient;
-
-    // Fresh counter for each test
-    const counterId = clientCount + 100;
-    await prisma.counter.upsert({
-      where: { id: counterId },
-      update: { value: 0 },
-      create: { id: counterId, value: 0 },
-    });
-
-    const task = async () => {
-      const latencies: number[] = [];
+    const worker = async () => {
       for (let i = 0; i < opsPerClient; i++) {
-        const { durationMs } = await timed(() =>
-          prisma.counter.update({ where: { id: counterId }, data: { value: { increment: 1 } } })
+        if (crashed) break;
+
+        const { durationMs, error } = await timedWithTimeout(
+          () => prisma.counter.update({
+            where: { id: counterId },
+            data: { value: { increment: 1 } },
+          }),
+          STRESS_CONFIG.OP_TIMEOUT_MS
         );
-        latencies.push(durationMs);
+
+        if (error) {
+          failureCount++;
+          const info = classifyError(error);
+          if (errors.length < 3) errors.push(info.message.slice(0, 120));
+          crashed = true;
+          return;
+        }
+        successCount++;
+        totalLatency += durationMs;
+        maxLat = Math.max(maxLat, durationMs);
       }
-      return latencies;
     };
 
-    const { durationMs: totalTime } = await timed(async () => {
-      const workers = Array.from({ length: clientCount }, () => task());
-      await Promise.all(workers);
+    const startTime = Date.now();
+    const workers = Array.from({ length: concurrency }, () => worker());
+    await Promise.all(workers);
+    const elapsed = Date.now() - startTime || 1;
+
+    const throughput = Math.round(successCount / (elapsed / 1000));
+    maxThroughput = Math.max(maxThroughput, throughput);
+    if (successCount > 0) maxConcurrencySustained = concurrency;
+
+    results.push({
+      level: concurrency,
+      label,
+      successCount,
+      failureCount,
+      avgLatencyMs: successCount > 0 ? Math.round((totalLatency / successCount) * 100) / 100 : 0,
+      maxLatencyMs: Math.round(maxLat * 100) / 100,
+      throughput,
+      errors: errors.slice(0, 3),
+      crashed,
     });
 
-    const throughput = totalTime > 0 ? Math.round(totalOps / (totalTime / 1000)) : 0;
-    const avgLat = totalTime / totalOps;
+    if (crashed) {
+      console.log(chalk.red(`💥 CRASHED`));
+      if (errors.length > 0) console.log(chalk.red(`       ${errors[0].slice(0, 160)}`));
+    } else {
+      console.log(`${chalk.green(formatOps(throughput))}  (${successCount} inc, avg ${(totalLatency / successCount).toFixed(1)}ms)`);
+    }
 
-    concurrentResults.push({ clients: clientCount, totalOps, totalMs: Math.round(totalTime), throughput, avgLatencyMs: Math.round(avgLat * 100) / 100 });
-
-    console.log(chalk.gray(`    Concurrent increment (${clientCount} clients × ${opsPerClient} ops):`));
-    console.log(`      Total: ${Math.round(totalTime)}ms  Avg latency: ${avgLat.toFixed(2)}ms  Throughput: ${formatOps(throughput)}`);
+    await sleep(500);
   }
 
-  return {
-    db: dbLabel,
-    incrementMs: incStats,
-    incrementOps: incOps,
-    conditionalUpdateMs: casStats,
-    conditionalUpdateOps: casOps,
-    concurrentResults,
-  };
+  let crashPoint: CrashPoint | null = null;
+  if (crashed && results.length > 0) {
+    const lastGood = [...results].reverse().find((r) => !r.crashed && r.successCount > 0);
+    const crashLevel = results.find((r) => r.crashed) || results[results.length - 1];
+    const info = crashLevel.errors.length > 0 ? classifyError(new Error(crashLevel.errors[0])) : { type: "other", message: "Unknown" };
+    crashPoint = {
+      level: crashLevel.level,
+      label: crashLevel.label,
+      totalSuccessfulOps: results.reduce((s, r) => s + r.successCount, 0),
+      totalFailedOps: results.reduce((s, r) => s + r.failureCount, 0),
+      errorType: info.type as any,
+      errorMessage: info.message,
+      lastGoodLevel: lastGood?.level ?? 0,
+    };
+  }
+
+  console.log(chalk.gray(`\n    ── Atomic crash summary ──`));
+  console.log(chalk.gray(`    Max concurrency sustained: ${maxConcurrencySustained}`));
+  console.log(chalk.gray(`    Max throughput:            ${formatOps(maxThroughput)}`));
+  if (crashPoint) {
+    console.log(chalk.red(`    Crashed at:               ${crashPoint.label}`));
+    console.log(chalk.red(`    Error type:               ${crashPoint.errorType}`));
+    console.log(chalk.gray(`    Total ops done:          ${crashPoint.totalSuccessfulOps.toLocaleString()}`));
+  } else {
+    console.log(chalk.green(`    💪 DB survived all atomic levels!`));
+  }
+
+  return { db: dbLabel, results, crashPoint, maxConcurrencySustained, maxThroughput };
 }

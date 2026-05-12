@@ -1,7 +1,7 @@
 {
   "name": "prismatic-showdown",
-  "version": "1.0.0",
-  "description": "Head-to-head Prisma benchmark: PostgreSQL vs MongoDB vs CockroachDB",
+  "version": "2.0.0",
+  "description": "💥 Prisma crash-test benchmark: PostgreSQL vs MongoDB vs CockroachDB — stress until failure",
   "private": true,
   "scripts": {
     "seed": "npx tsx src/seed.ts",

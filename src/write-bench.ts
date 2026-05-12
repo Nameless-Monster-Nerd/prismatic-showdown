@@ -1,89 +1,137 @@
-import { BENCH_CONFIG } from "./config.js";
-import { timed, percentiles, formatOps, saveResults } from "./utils.js";
+import { STRESS_CONFIG, StressLevelResult, CrashPoint } from "./config.js";
+import { timedWithTimeout, healthCheck, classifyError, formatOps, sleep } from "./utils.js";
 import chalk from "chalk";
 
-export interface WriteResult {
+export interface WriteCrashReport {
   db: string;
-  singleWriteMs: { p50: number; p95: number; p99: number; mean: number; min: number; max: number };
-  singleWriteOps: number;
-  batchResults: {
-    batchSize: number;
-    totalMs: number;
-    avgPerItemMs: number;
-    throughput: number;
-  }[];
+  results: StressLevelResult[];
+  crashPoint: CrashPoint | null;
+  maxBatchSizeSustained: number;
+  maxThroughput: number;
 }
 
-export async function runWriteBenchmark(prisma: any, dbLabel: string): Promise<WriteResult> {
-  console.log(chalk.cyan(`\n  ── Write Benchmarks ──`));
+export async function runWriteCrashTest(prisma: any, dbLabel: string): Promise<WriteCrashReport> {
+  console.log(chalk.cyan(`\n  ── WRITE CRASH TEST ──`));
 
-  // ── Single Write ──
-  const singleLatencies: number[] = [];
-  const iterations = BENCH_CONFIG.SINGLE_WRITE_ITERATIONS;
+  const results: StressLevelResult[] = [];
+  let crashed = false;
+  let maxThroughput = 0;
+  let maxBatchSizeSustained = 0;
 
-  // Warmup
-  for (let i = 0; i < BENCH_CONFIG.WARMUP; i++) {
-    await prisma.user.create({
-      data: {
-        email: `warmup${i}_${Date.now()}@bench.com`,
-        name: `Warmup_${i}`,
-        score: 0,
-      },
-    });
-  }
+  for (const batchSize of STRESS_CONFIG.WRITE_BATCH_RAMP) {
+    if (crashed) break;
 
-  for (let i = 0; i < iterations; i++) {
-    const { durationMs } = await timed(() =>
-      prisma.user.create({
-        data: {
-          email: `write_${i}_${Date.now()}_${Math.random()}@bench.com`,
-          name: `WriteUser_${i}`,
-          score: Math.floor(Math.random() * 1000),
-          bio: "Single write benchmark entry",
-        },
-      })
-    );
-    singleLatencies.push(durationMs);
-  }
+    const label = `batch=${batchSize.toLocaleString()}`;
+    process.stdout.write(chalk.gray(`\n    ⏳ ${label} ... `));
 
-  singleLatencies.sort((a, b) => a - b);
-  const singleStats = percentiles(singleLatencies);
-  const avgSingleMs = singleStats.mean;
-  const singleOps = avgSingleMs > 0 ? Math.round(1000 / (avgSingleMs / 1000)) : 0;
+    let successCount = 0;
+    let failureCount = 0;
+    let totalLatency = 0;
+    let maxLat = 0;
+    const errors: string[] = [];
 
-  console.log(chalk.gray(`    Single write (${iterations} ops):`));
-  console.log(`      p50=${singleStats.p50.toFixed(2)}ms  p95=${singleStats.p95.toFixed(2)}ms  p99=${singleStats.p99.toFixed(2)}ms  avg=${singleStats.mean.toFixed(2)}ms`);
-  console.log(`      Throughput: ~${formatOps(singleOps)}`);
+    // Run multiple batches at this level to confirm stability
+    for (let attempt = 0; attempt < STRESS_CONFIG.WRITE_BATCHES_PER_LEVEL; attempt++) {
+      if (crashed) break;
 
-  // ── Batch Write ──
-  const batchResults: WriteResult["batchResults"] = [];
-
-  for (const batchSize of BENCH_CONFIG.BATCH_SIZES) {
-    const data = Array.from({ length: batchSize }, (_, i) => ({
-      email: `batch_${batchSize}_${i}_${Date.now()}_${Math.random()}@bench.com`,
-      name: `BatchUser_${batchSize}_${i}`,
-      score: Math.floor(Math.random() * 1000),
-      bio: "Batch write benchmark entry to test throughput under load across varying batch sizes for Prisma ORM performance evaluation",
-    }));
-
-    const { durationMs } = await timed(async () => {
-      for (const d of data) {
-        await prisma.user.create({ data: d });
+      // Health check before each batch
+      const alive = await healthCheck(prisma);
+      if (!alive) {
+        crashed = true;
+        errors.push("DB unreachable before batch");
+        break;
       }
+
+      const users = Array.from({ length: batchSize }, (_, i) => ({
+        email: `crash_write_${batchSize}_${attempt}_${i}_${Date.now()}_${Math.random()}@bench.com`,
+        name: `CrashWrite_${batchSize}_${attempt}_${i}`.slice(0, 100),
+        score: Math.floor(Math.random() * 1000),
+        bio: "x".repeat(100), // realistic payload size
+      }));
+
+      const { durationMs, error } = await timedWithTimeout(
+        async () => {
+          for (const u of users) {
+            await prisma.user.create({ data: u });
+          }
+        },
+        STRESS_CONFIG.OP_TIMEOUT_MS
+      );
+
+      if (error) {
+        failureCount += batchSize;
+        const info = classifyError(error);
+        errors.push(info.message.slice(0, 120));
+        crashed = true;
+        break;
+      }
+
+      successCount += batchSize;
+      totalLatency += durationMs;
+      maxLat = Math.max(maxLat, durationMs);
+    }
+
+    const avgLat = successCount > 0 ? totalLatency / successCount : 0;
+    const throughput = successCount > 0 && totalLatency > 0
+      ? Math.round(successCount / (totalLatency / 1000))
+      : 0;
+    maxThroughput = Math.max(maxThroughput, throughput);
+    if (successCount > 0) maxBatchSizeSustained = batchSize;
+
+    results.push({
+      level: batchSize,
+      label,
+      successCount,
+      failureCount,
+      avgLatencyMs: Math.round(avgLat * 100) / 100,
+      maxLatencyMs: Math.round(maxLat * 100) / 100,
+      throughput,
+      errors: errors.slice(0, 3),
+      crashed,
     });
 
-    const avgPerItem = durationMs / batchSize;
-    const throughput = durationMs > 0 ? Math.round(batchSize / (durationMs / 1000)) : 0;
+    if (crashed) {
+      console.log(chalk.red(`💥 CRASHED`));
+      if (errors.length > 0) console.log(chalk.red(`       ${errors[0].slice(0, 160)}`));
+    } else {
+      const status = throughput > 0 ? chalk.green(`${formatOps(throughput)}`) : chalk.gray("0/s");
+      console.log(`${status}  (avg ${avgLat.toFixed(1)}ms/batch)`);
+    }
+  }
 
-    batchResults.push({ batchSize, totalMs: Math.round(durationMs), avgPerItemMs: Math.round(avgPerItem * 100) / 100, throughput });
-    console.log(chalk.gray(`    Batch insert ${batchSize} rows:`));
-    console.log(`      Total: ${Math.round(durationMs)}ms  Avg/item: ${avgPerItem.toFixed(2)}ms  Throughput: ${formatOps(throughput)}`);
+  // Determine crash point
+  let crashPoint: CrashPoint | null = null;
+  if (crashed && results.length > 0) {
+    const lastGood = [...results].reverse().find((r) => !r.crashed && r.successCount > 0);
+    const crashLevel = results.find((r) => r.crashed) || results[results.length - 1];
+    const info = crashLevel.errors.length > 0 ? classifyError(new Error(crashLevel.errors[0])) : { type: "other", message: "Unknown" };
+    crashPoint = {
+      level: crashLevel.level,
+      label: crashLevel.label,
+      totalSuccessfulOps: results.reduce((s, r) => s + r.successCount, 0),
+      totalFailedOps: results.reduce((s, r) => s + r.failureCount, 0),
+      errorType: info.type as any,
+      errorMessage: info.message,
+      lastGoodLevel: lastGood?.level ?? 0,
+    };
+  }
+
+  console.log(chalk.gray(`\n    ── Write crash summary ──`));
+  console.log(chalk.gray(`    Max sustained batch: ${maxBatchSizeSustained.toLocaleString()} rows`));
+  console.log(chalk.gray(`    Max throughput:      ${formatOps(maxThroughput)}`));
+  if (crashPoint) {
+    console.log(chalk.red(`    Crashed at:          ${crashPoint.label}`));
+    console.log(chalk.red(`    Error type:          ${crashPoint.errorType}`));
+    console.log(chalk.gray(`    Total ops done:     ${crashPoint.totalSuccessfulOps.toLocaleString()}`));
+  } else {
+    console.log(chalk.green(`    💪 DB survived all write levels!`));
   }
 
   return {
     db: dbLabel,
-    singleWriteMs: singleStats,
-    singleWriteOps: singleOps,
-    batchResults,
+    results,
+    crashPoint,
+    maxBatchSizeSustained,
+    maxThroughput,
   };
 }

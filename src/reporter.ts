@@ -2,23 +2,23 @@ import fs from "fs";
 import path from "path";
 import chalk from "chalk";
 
-interface BenchResults {
+interface CrashResults {
   timestamp: string;
   config: any;
-  results: Record<string, any>;
+  databases: Record<string, any>;
 }
 
-function loadResults(): BenchResults {
-  const resultsPath = path.join(process.cwd(), "results", "latest.json");
+function loadResults(): CrashResults {
+  const resultsPath = path.join(process.cwd(), "results", "crash-results.json");
   if (!fs.existsSync(resultsPath)) {
-    console.error(chalk.red("❌ No results found. Run benchmarks first (npm run bench)"));
+    console.error(chalk.red("❌ No crash results found. Run benchmarks first (npm run bench)"));
     process.exit(1);
   }
   return JSON.parse(fs.readFileSync(resultsPath, "utf-8"));
 }
 
 function dbColors(db: string): { bg: string; border: string; fill: string } {
-  const colors: Record<string, { bg: string; border: string; fill: string }> = {
+  const colors: Record<string, any> = {
     pg: { bg: "rgba(51, 103, 145, 0.7)", border: "#336791", fill: "rgba(51, 103, 145, 0.2)" },
     mongo: { bg: "rgba(71, 168, 78, 0.7)", border: "#47a84e", fill: "rgba(71, 168, 78, 0.2)" },
     cockroach: { bg: "rgba(45, 183, 180, 0.7)", border: "#2db7b4", fill: "rgba(45, 183, 180, 0.2)" },
@@ -26,260 +26,281 @@ function dbColors(db: string): { bg: string; border: string; fill: string } {
   return colors[db] || { bg: "#999", border: "#666", fill: "rgba(150,150,150,0.2)" };
 }
 
-function generateHTML(results: BenchResults): string {
-  const dbKeys = Object.keys(results.results);
+function generateHTML(results: CrashResults): string {
+  const dbKeys = Object.keys(results.databases);
   const dbLabels: Record<string, string> = { pg: "PostgreSQL", mongo: "MongoDB", cockroach: "CockroachDB" };
 
-  // Build chart datasets
-  const singleWriteLat = `datasets: [${dbKeys.map((k) => `{ label: '${dbLabels[k]}', data: [${results.results[k].write.singleWriteMs.p50}, ${results.results[k].write.singleWriteMs.p95}, ${results.results[k].write.singleWriteMs.p99}], ${jsonColorAttrs(k)} }`).join(",")}]`;
-  const batchThroughput = `datasets: [${dbKeys.map((k) => `{ label: '${dbLabels[k]}', data: [${results.results[k].write.batchResults.map((b: any) => b.throughput).join(",")}], ${jsonColorAttrs(k)} }`).join(",")}]`;
-  const readLat = `datasets: [${dbKeys.map((k) => `{ label: '${dbLabels[k]}', data: [${results.results[k].read.pointLookupMs.mean}, ${results.results[k].read.indexedLookupMs.mean}, ${results.results[k].read.rangeScanMs.mean}], ${jsonColorAttrs(k)} }`).join(",")}]`;
-  const atomicLat = `datasets: [${dbKeys.map((k) => `{ label: '${dbLabels[k]}', data: [${results.results[k].atomic.incrementMs.mean}, ${results.results[k].atomic.conditionalUpdateMs.mean}], ${jsonColorAttrs(k)} }`).join(",")}]`;
-  const concurrentThroughput = `datasets: [${dbKeys.map((k) => `{ label: '${dbLabels[k]}', data: [${results.results[k].atomic.concurrentResults.map((c: any) => c.throughput).join(",")}], ${jsonColorAttrs(k)} }`).join(",")}]`;
+  // Build datasets for charts
+  function buildPhaseDatasets(phase: "write" | "read" | "atomic", field: string): string {
+    return dbKeys.map((k) => {
+      const data = results.databases[k]?.[phase]?.results?.map((r: any) => r[field]) ?? [];
+      const labels = results.databases[k]?.[phase]?.results?.map((r: any) => `'${r.label}'`) ?? [];
+      return `{ label: '${dbLabels[k]}', data: [${data.join(",")}], ${Object.entries(dbColors(k)).map(([kk, vv]) => `${kk}: '${vv}'`).join(",")} }`;
+    }).join(",");
+  }
+
+  function buildLabels(phase: "write" | "read" | "atomic"): string {
+    for (const k of dbKeys) {
+      const labels = results.databases[k]?.[phase]?.results?.map((r: any) => `'${r.label}'`);
+      if (labels) return labels.join(",");
+    }
+    return "";
+  }
+
+  // Crash point data
+  function crashData(): string {
+    return dbKeys.map((k) => {
+      const wp = results.databases[k]?.write?.crashPoint;
+      const rp = results.databases[k]?.read?.crashPoint;
+      const ap = results.databases[k]?.atomic?.crashPoint;
+      return `{
+        label: '${dbLabels[k]}',
+        data: {
+          write: ${wp ? `{ level: ${wp.level}, label: '${wp.label}', error: '${wp.errorType}' }` : "null"},
+          read: ${rp ? `{ level: ${rp.level}, label: '${rp.label}', error: '${rp.errorType}' }` : "null"},
+          atomic: ${ap ? `{ level: ${ap.level}, label: '${ap.label}', error: '${ap.errorType}' }` : "null"},
+        }
+      }`;
+    }).join(",");
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🏋️ Prismatic Showdown — Benchmark Results</title>
+<title>💥 Prismatic Showdown — Crash Test Report</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; padding: 2rem; }
-  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #58a6ff; }
-  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; color: #f0f6fc; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #f85149; }
+  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; color: #f0f6fc; padding-bottom: 0.5rem; }
   h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: #8b949e; }
-  p { color: #8b949e; margin-bottom: 1rem; }
   .meta { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
   .meta dt { color: #8b949e; font-size: 0.85rem; text-transform: uppercase; }
   .meta dd { color: #f0f6fc; font-size: 1.1rem; margin-bottom: 0.5rem; }
   .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
   .chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.2rem; }
-  .chart-card h3 { margin-top: 0; margin-bottom: 0.8rem; }
-  canvas { width: 100% !important; height: auto !important; max-height: 350px; }
+  canvas { width: 100% !important; max-height: 350px; }
+  .crash-card { background: #161b22; border: 1px solid #f85149; border-radius: 8px; padding: 1.2rem; margin-bottom: 1rem; }
+  .crash-card h3 { color: #f85149; }
+  .crash-card .error { color: #ff7b72; font-family: monospace; font-size: 0.85rem; margin-top: 0.5rem; }
+  .survive { background: rgba(63, 185, 80, 0.15); color: #3fb950; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+  .died { background: rgba(248, 81, 73, 0.15); color: #f85149; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
   table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
   th, td { padding: 0.6rem 0.8rem; text-align: right; border-bottom: 1px solid #30363d; }
   th { background: #161b22; color: #8b949e; font-size: 0.8rem; text-transform: uppercase; }
   td:first-child, th:first-child { text-align: left; }
-  .score { color: #58a6ff; font-weight: bold; }
-  .winner { background: rgba(45, 183, 180, 0.1); }
-  .highlight { color: #3fb950; font-weight: bold; }
-  .slow { color: #f85149; }
   @media (max-width: 600px) { .chart-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-<h1>🏋️ Prismatic Showdown</h1>
-<p>Prisma ORM benchmark: PostgreSQL vs MongoDB vs CockroachDB — <strong>Read / Write / Atomic Updates</strong></p>
+
+<h1>💥 Prismatic Showdown — Crash Test</h1>
+<p>Stress-to-failure benchmark: each test ramps up load until the database crashes (timeout, connection refused, or OOM). Tests run independently for <strong>writes (batch size ramp)</strong>, <strong>reads (concurrency ramp)</strong>, and <strong>atomic increments (concurrency ramp)</strong>.</p>
 
 <div class="meta">
   <dl>
     <dt>Run Timestamp</dt>
     <dd>${new Date(results.timestamp).toLocaleString()}</dd>
-    <dt>Seed Data</dt>
-    <dd>${results.config.seedUsers.toLocaleString()} users, ${(results.config.seedUsers * results.config.itemsPerUser).toLocaleString()} items per DB</dd>
-    <dt>Resource Constraints</dt>
-    <dd>2 CPU cores · 2 GB RAM per database</dd>
+    <dt>Write Ramp</dt>
+    <dd>${results.config.writeBatchRamp.map((n: number) => n.toLocaleString()).join(" → ")} rows/batch</dd>
+    <dt>Read Ramp</dt>
+    <dd>${results.config.readConcurrencyRamp.join(" → ")} concurrent readers</dd>
+    <dt>Atomic Ramp</dt>
+    <dd>${results.config.atomicConcurrencyRamp.join(" → ")} concurrent incrementers</dd>
+    <dt>Op Timeout</dt>
+    <dd>${results.config.opTimeoutMs}ms</dd>
   </dl>
 </div>
 
-<h2>✍️ Write Benchmarks</h2>
+<h2>💀 Crash Points</h2>
+<div class="chart-grid" id="crashCards">
+${dbKeys.map(k => {
+  const d = results.databases[k];
+  const label = dbLabels[k];
+  const c = dbColors(k);
+  const wp = d?.write?.crashPoint;
+  const rp = d?.read?.crashPoint;
+  const ap = d?.atomic?.crashPoint;
+  const crashed = wp || rp || ap;
+  return `<div class="crash-card" style="border-left: 4px solid ${c.border}">
+    <h3 style="color: ${c.border}">${label}</h3>
+    <table>
+      <tr><th>Test</th><th>Status</th><th>Last Good</th><th>Crashed At</th><th>Error</th><th>Total Ops</th></tr>
+      <tr>
+        <td>Write</td>
+        <td>${wp ? '<span class="died">💥 CRASHED</span>' : '<span class="survive">✅ SURVIVED</span>'}</td>
+        <td>${wp ? wp.lastGoodLevel.toLocaleString() : d?.write?.maxBatchSizeSustained?.toLocaleString() ?? "-"}</td>
+        <td>${wp ? wp.label : "-"}</td>
+        <td style="font-size:0.8rem;max-width:200px;overflow:hidden;text-overflow:ellipsis">${wp ? wp.errorType : "-"}</td>
+        <td>${(d?.write?.crashPoint?.totalSuccessfulOps ?? d?.write?.results?.reduce((s: number, r: any) => s + r.successCount, 0) ?? 0).toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td>Read</td>
+        <td>${rp ? '<span class="died">💥 CRASHED</span>' : '<span class="survive">✅ SURVIVED</span>'}</td>
+        <td>${rp ? rp.lastGoodLevel.toLocaleString() : d?.read?.maxConcurrencySustained?.toLocaleString() ?? "-"}</td>
+        <td>${rp ? rp.label : "-"}</td>
+        <td style="font-size:0.8rem">${rp ? rp.errorType : "-"}</td>
+        <td>${(d?.read?.crashPoint?.totalSuccessfulOps ?? d?.read?.results?.reduce((s: number, r: any) => s + r.successCount, 0) ?? 0).toLocaleString()}</td>
+      </tr>
+      <tr>
+        <td>Atomic</td>
+        <td>${ap ? '<span class="died">💥 CRASHED</span>' : '<span class="survive">✅ SURVIVED</span>'}</td>
+        <td>${ap ? ap.lastGoodLevel.toLocaleString() : d?.atomic?.maxConcurrencySustained?.toLocaleString() ?? "-"}</td>
+        <td>${ap ? ap.label : "-"}</td>
+        <td style="font-size:0.8rem">${ap ? ap.errorType : "-"}</td>
+        <td>${(d?.atomic?.crashPoint?.totalSuccessfulOps ?? d?.atomic?.results?.reduce((s: number, r: any) => s + r.successCount, 0) ?? 0).toLocaleString()}</td>
+      </tr>
+    </table>
+    ${d?.overall ? `<p>⚠️ <strong>First crash:</strong> ${d.overall.crashedFirst} — total ops before failure: <strong>${d.overall.totalOpsBeforeTotalFailure.toLocaleString()}</strong></p>` : '<p>✅ <strong>No crashes — DB survived all levels!</strong></p>'}
+  </div>`;
+}).join("")}
+</div>
+
+<h2>📈 Write Stress — Throughput by Batch Size</h2>
 <div class="chart-grid">
   <div class="chart-card">
-    <h3>Single Write Latency (ms)</h3>
-    <canvas id="singleWriteChart"></canvas>
+    <h3>Throughput (ops/sec)</h3>
+    <canvas id="writeThroughputChart"></canvas>
   </div>
   <div class="chart-card">
-    <h3>Batch Write Throughput (ops/sec)</h3>
-    <canvas id="batchThroughputChart"></canvas>
+    <h3>Avg Latency per Batch (ms)</h3>
+    <canvas id="writeLatencyChart"></canvas>
   </div>
 </div>
 
-<h2>📖 Read Benchmarks</h2>
+<h2>📈 Read Stress — Throughput by Concurrency</h2>
 <div class="chart-grid">
   <div class="chart-card">
-    <h3>Read Latency — Mean (ms)</h3>
+    <h3>Throughput (ops/sec)</h3>
+    <canvas id="readThroughputChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Avg Latency (ms)</h3>
     <canvas id="readLatencyChart"></canvas>
   </div>
-  <div class="chart-card">
-    <h3>Point Lookup Latency Distribution (ms)</h3>
-    <canvas id="pointLookupDistChart"></canvas>
-  </div>
 </div>
 
-<h2>⚡ Atomic Update Benchmarks</h2>
+<h2>📈 Atomic Stress — Throughput by Concurrency</h2>
 <div class="chart-grid">
   <div class="chart-card">
-    <h3>Atomic Update Latency — Mean (ms)</h3>
-    <canvas id="atomicLatencyChart"></canvas>
+    <h3>Throughput (ops/sec)</h3>
+    <canvas id="atomicThroughputChart"></canvas>
   </div>
   <div class="chart-card">
-    <h3>Concurrent Increment Throughput (ops/sec)</h3>
-    <canvas id="concurrentThroughputChart"></canvas>
+    <h3>Avg Latency (ms)</h3>
+    <canvas id="atomicLatencyChart"></canvas>
   </div>
 </div>
 
-<h2>📊 Raw Data</h2>
-<div id="rawTables"></div>
-
-${dbKeys.length > 0 ? generateTableHTML(results, dbKeys) : "<p>No benchmark results available.</p>"}
+<h2>🏆 Max Sustained Capacity</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Before Crash — by Workload</h3>
+    <canvas id="capacityChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Total Ops Before Failure</h3>
+    <canvas id="totalOpsChart"></canvas>
+  </div>
+</div>
 
 <script>
 Chart.defaults.color = '#8b949e';
 Chart.defaults.borderColor = '#30363d';
 
-function chartConfig(type, labels, datasetsConfig, opts = {}) {
-  return { type, data: { labels, ...datasetsConfig }, options: { responsive: true, plugins: { legend: { position: 'top', labels: { padding: 15, usePointStyle: true } } }, ...opts } };
-}
+// Write throughput
+new Chart(document.getElementById('writeThroughputChart'), {
+  type: 'bar',
+  data: { labels: [${buildLabels("write")}], datasets: [${buildPhaseDatasets("write", "throughput")}] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
+});
 
-// 1. Single Write Latency
-new Chart(document.getElementById('singleWriteChart'), chartConfig('bar', ['p50', 'p95', 'p99'], ${singleWriteLat}, {
-  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
-}));
+// Write latency
+new Chart(document.getElementById('writeLatencyChart'), {
+  type: 'bar',
+  data: { labels: [${buildLabels("write")}], datasets: [${buildPhaseDatasets("write", "avgLatencyMs")}] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
+});
 
-// 2. Batch Throughput
-new Chart(document.getElementById('batchThroughputChart'), chartConfig('bar', [${Object.keys(results.results).length > 0 ? results.results[dbKeys[0]].write.batchResults.map((b:any) => `'${b.batchSize} rows'`).join(",") : ''}], ${batchThroughput}, {
-  scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } }
-}));
+// Read throughput
+new Chart(document.getElementById('readThroughputChart'), {
+  type: 'line',
+  data: { labels: [${buildLabels("read")}], datasets: [${buildPhaseDatasets("read", "throughput")}] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
+});
 
-// 3. Read Latency
-new Chart(document.getElementById('readLatencyChart'), chartConfig('bar', ['Point Lookup (PK)', 'Indexed Lookup (Email)', 'Range Scan'], ${readLat}, {
-  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
-}));
+// Read latency
+new Chart(document.getElementById('readLatencyChart'), {
+  type: 'line',
+  data: { labels: [${buildLabels("read")}], datasets: [${buildPhaseDatasets("read", "avgLatencyMs")}] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
+});
 
-// 4. Point Lookup Distribution
-new Chart(document.getElementById('pointLookupDistChart'), chartConfig('bar', ['p50', 'p95', 'p99'], {
-  datasets: [${dbKeys.map(k => `{ label: '${dbLabels[k]}', data: [${results.results[k].read.pointLookupMs.p50}, ${results.results[k].read.pointLookupMs.p95}, ${results.results[k].read.pointLookupMs.p99}], ${jsonColorAttrs(k)} }`).join(",")}]
-}, {
-  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
-}));
+// Atomic throughput
+new Chart(document.getElementById('atomicThroughputChart'), {
+  type: 'line',
+  data: { labels: [${buildLabels("atomic")}], datasets: [${buildPhaseDatasets("atomic", "throughput")}] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } } }
+});
 
-// 5. Atomic Latency
-new Chart(document.getElementById('atomicLatencyChart'), chartConfig('bar', ['Atomic Increment', 'CAS Update'], ${atomicLat}, {
-  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
-}));
+// Atomic latency
+new Chart(document.getElementById('atomicLatencyChart'), {
+  type: 'line',
+  data: { labels: [${buildLabels("atomic")}], datasets: [${buildPhaseDatasets("atomic", "avgLatencyMs")}] },
+  options: { responsive: true, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } } }
+});
 
-// 6. Concurrent Throughput
-new Chart(document.getElementById('concurrentThroughputChart'), chartConfig('line', [${Object.keys(results.results).length > 0 ? results.results[dbKeys[0]].atomic.concurrentResults.map((c:any) => `'${c.clients} clients'`).join(",") : ''}], ${concurrentThroughput}, {
-  scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } }
-}));
+// Capacity comparison
+new Chart(document.getElementById('capacityChart'), {
+  type: 'radar',
+  data: {
+    labels: ['Write (max batch×100)', 'Read (max clients)', 'Atomic (max clients)'],
+    datasets: [${dbKeys.map(k => {
+      const d = results.databases[k];
+      const writeVal = d?.write?.maxBatchSizeSustained ? Math.round(d.write.maxBatchSizeSustained / 100) : 0;
+      const readVal = d?.read?.maxConcurrencySustained ?? 0;
+      const atomicVal = d?.atomic?.maxConcurrencySustained ?? 0;
+      const c = dbColors(k);
+      return `{ label: '${dbLabels[k]}', data: [${writeVal}, ${readVal}, ${atomicVal}], backgroundColor: '${c.fill}', borderColor: '${c.border}', pointBackgroundColor: '${c.border}' }`;
+    }).join(",")}]
+  },
+  options: { responsive: true, scales: { r: { beginAtZero: true, grid: { color: '#30363d' }, angleLines: { color: '#30363d' }, pointLabels: { color: '#8b949e' } } }, plugins: { legend: { position: 'top', labels: { usePointStyle: true } } } }
+});
+
+// Total ops
+new Chart(document.getElementById('totalOpsChart'), {
+  type: 'bar',
+  data: {
+    labels: [${dbKeys.map(k => `'${dbLabels[k]}'`).join(",")}],
+    datasets: [{
+      label: 'Total Ops Before Failure',
+      data: [${dbKeys.map(k => results.databases[k]?.overall?.totalOpsBeforeTotalFailure ?? (() => {
+        const d = results.databases[k];
+        return (d?.write?.results?.reduce((s: number, r: any) => s + r.successCount, 0) ?? 0) +
+               (d?.read?.results?.reduce((s: number, r: any) => s + r.successCount, 0) ?? 0) +
+               (d?.atomic?.results?.reduce((s: number, r: any) => s + r.successCount, 0) ?? 0);
+      })()).join(",")}],
+      backgroundColor: [${dbKeys.map(k => `'${dbColors(k).bg}'`).join(",")}],
+      borderColor: [${dbKeys.map(k => `'${dbColors(k).border}'`).join(",")}],
+      borderWidth: 2
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Total Successful Ops' } } } }
+});
 </script>
 </body>
 </html>`;
 }
 
-function jsonColorAttrs(dbKey: string): string {
-  const c = dbColors(dbKey);
-  return `backgroundColor: '${c.bg}', borderColor: '${c.border}', borderWidth: 2`;
-}
-
-function generateTableHTML(results: BenchResults, dbKeys: string[]): string {
-  const dbLabels: Record<string, string> = { pg: "PostgreSQL", mongo: "MongoDB", cockroach: "CockroachDB" };
-
-  let html = "";
-
-  // Write summary table
-  html += '<h3>Write Performance</h3><table><tr><th>Metric</th>';
-  for (const k of dbKeys) html += `<th>${dbLabels[k]}</th>`;
-  html += "</tr>";
-
-  // Single write latencies
-  html += `<tr><td>Single Write — p50 (ms)</td>`;
-  for (const k of dbKeys) html += `<td>${results.results[k].write.singleWriteMs.p50.toFixed(2)}</td>`;
-  html += "</tr>";
-
-  html += `<tr><td>Single Write — p95 (ms)</td>`;
-  for (const k of dbKeys) html += `<td>${results.results[k].write.singleWriteMs.p95.toFixed(2)}</td>`;
-  html += "</tr>";
-
-  html += `<tr><td>Single Write — p99 (ms)</td>`;
-  for (const k of dbKeys) html += `<td>${results.results[k].write.singleWriteMs.p99.toFixed(2)}</td>`;
-  html += "</tr>";
-
-  // Batch writes
-  for (let bi = 0; bi < results.results[dbKeys[0]].write.batchResults.length; bi++) {
-    const bs = results.results[dbKeys[0]].write.batchResults[bi].batchSize;
-    html += `<tr><td>Batch ${bs} — Throughput (ops/sec)</td>`;
-    for (const k of dbKeys) html += `<td class="${getBest(dbKeys.map(dk => results.results[dk].write.batchResults[bi].throughput), results.results[k].write.batchResults[bi].throughput, 'high')}">${results.results[k].write.batchResults[bi].throughput.toLocaleString()}</td>`;
-    html += "</tr>";
-  }
-  html += "</table>";
-
-  // Read summary table
-  html += '<h3>Read Performance</h3><table><tr><th>Metric</th>';
-  for (const k of dbKeys) html += `<th>${dbLabels[k]}</th>`;
-  html += "</tr>";
-
-  const readMetrics = [
-    { label: "Point Lookup — mean (ms)", field: "pointLookupMs", sub: "mean" },
-    { label: "Point Lookup — p99 (ms)", field: "pointLookupMs", sub: "p99" },
-    { label: "Indexed Lookup — mean (ms)", field: "indexedLookupMs", sub: "mean" },
-    { label: "Indexed Lookup — p99 (ms)", field: "indexedLookupMs", sub: "p99" },
-    { label: "Range Scan — mean (ms)", field: "rangeScanMs", sub: "mean" },
-    { label: "Range Scan — p99 (ms)", field: "rangeScanMs", sub: "p99" },
-  ];
-
-  for (const m of readMetrics) {
-    html += `<tr><td>${m.label}</td>`;
-    for (const k of dbKeys) {
-      const val = results.results[k].read[m.field][m.sub];
-      html += `<td class="${getBest(dbKeys.map(dk => results.results[dk].read[m.field][m.sub]), val, 'low')}">${val.toFixed(2)}</td>`;
-    }
-    html += "</tr>";
-  }
-  html += "</table>";
-
-  // Atomic summary table
-  html += '<h3>Atomic Update Performance</h3><table><tr><th>Metric</th>';
-  for (const k of dbKeys) html += `<th>${dbLabels[k]}</th>`;
-  html += "</tr>";
-
-  const atomicMetrics = [
-    { label: "Atomic Increment — mean (ms)", field: "incrementMs", sub: "mean" },
-    { label: "Atomic Increment — p99 (ms)", field: "incrementMs", sub: "p99" },
-    { label: "CAS Update — mean (ms)", field: "conditionalUpdateMs", sub: "mean" },
-    { label: "CAS Update — p99 (ms)", field: "conditionalUpdateMs", sub: "p99" },
-  ];
-
-  for (const m of atomicMetrics) {
-    html += `<tr><td>${m.label}</td>`;
-    for (const k of dbKeys) {
-      const val = results.results[k].atomic[m.field][m.sub];
-      html += `<td class="${getBest(dbKeys.map(dk => results.results[dk].atomic[m.field][m.sub]), val, 'low')}">${val.toFixed(2)}</td>`;
-    }
-    html += "</tr>";
-  }
-
-  // Concurrent throughput
-  for (let ci = 0; ci < results.results[dbKeys[0]].atomic.concurrentResults.length; ci++) {
-    const clients = results.results[dbKeys[0]].atomic.concurrentResults[ci].clients;
-    html += `<tr><td>Concurrent (${clients} clients) — Throughput</td>`;
-    for (const k of dbKeys) {
-      const tp = results.results[k].atomic.concurrentResults[ci].throughput;
-      html += `<td class="${getBest(dbKeys.map(dk => results.results[dk].atomic.concurrentResults[ci].throughput), tp, 'high')}">${tp.toLocaleString()} ops/sec</td>`;
-    }
-    html += "</tr>";
-  }
-  html += "</table>";
-
-  return html;
-}
-
-function getBest(allVals: number[], current: number, mode: "high" | "low"): string {
-  if (allVals.length <= 1) return "";
-  if (mode === "high") {
-    return current >= Math.max(...allVals) ? "winner" : "";
-  }
-  return current <= Math.min(...allVals) ? "winner" : "";
-}
-
 function main() {
   const results = loadResults();
   const html = generateHTML(results);
-  const outPath = path.join(process.cwd(), "results", "report.html");
+  const outPath = path.join(process.cwd(), "results", "crash-report.html");
   fs.writeFileSync(outPath, html);
-  console.log(chalk.green(`\n📊 Report generated: results/report.html\n`));
+  console.log(chalk.green(`\n💀 Crash report: results/crash-report.html\n`));
 }
 
 main();

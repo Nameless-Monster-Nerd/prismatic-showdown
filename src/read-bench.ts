@@ -1,87 +1,141 @@
-import { BENCH_CONFIG } from "./config.js";
-import { timed, percentiles, formatOps } from "./utils.js";
+import { STRESS_CONFIG, StressLevelResult, CrashPoint } from "./config.js";
+import { timedWithTimeout, healthCheck, classifyError, formatOps, sleep } from "./utils.js";
 import chalk from "chalk";
 
-export interface ReadResult {
+export interface ReadCrashReport {
   db: string;
-  pointLookupMs: { p50: number; p95: number; p99: number; mean: number; min: number; max: number };
-  pointLookupOps: number;
-  indexedLookupMs: { p50: number; p95: number; p99: number; mean: number; min: number; max: number };
-  indexedLookupOps: number;
-  rangeScanMs: { p50: number; p95: number; p99: number; mean: number; min: number; max: number };
-  rangeScanOps: number;
+  results: StressLevelResult[];
+  crashPoint: CrashPoint | null;
+  maxConcurrencySustained: number;
+  maxThroughput: number;
 }
 
-export async function runReadBenchmark(prisma: any, dbLabel: string): Promise<ReadResult> {
-  console.log(chalk.cyan(`\n  ── Read Benchmarks ──`));
+export async function runReadCrashTest(prisma: any, dbLabel: string, userIds: any[]): Promise<ReadCrashReport> {
+  console.log(chalk.cyan(`\n  ── READ CRASH TEST ──`));
 
-  // Get existing IDs for lookups
-  const allUsers = await prisma.user.findMany({ take: BENCH_CONFIG.POINT_LOOKUP_ITERATIONS, orderBy: { id: "asc" } });
-  const userIds = allUsers.map((u: any) => u.id);
-  const userEmails = allUsers.map((u: any) => u.email);
+  const results: StressLevelResult[] = [];
+  let crashed = false;
+  let maxThroughput = 0;
+  let maxConcurrencySustained = 0;
 
-  // ── Point Lookup (by PK) ──
-  const pointLatencies: number[] = [];
-  for (let i = 0; i < BENCH_CONFIG.WARMUP; i++) {
-    await prisma.user.findUnique({ where: { id: userIds[i % userIds.length] } });
+  for (const concurrency of STRESS_CONFIG.READ_CONCURRENCY_RAMP) {
+    if (crashed) break;
+
+    const label = `clients=${concurrency}`;
+    process.stdout.write(chalk.gray(`\n    ⏳ ${label} ... `));
+
+    let successCount = 0;
+    let failureCount = 0;
+    let totalLatency = 0;
+    let maxLat = 0;
+    const errors: string[] = [];
+
+    const opsPerClient = STRESS_CONFIG.READ_OPS_PER_CLIENT;
+
+    // Spawn concurrent readers
+    const worker = async () => {
+      for (let i = 0; i < opsPerClient; i++) {
+        if (crashed) break;
+
+        // Interleave read types
+        const readType = i % 3;
+        let op: Promise<any>;
+        if (readType === 0) {
+          const id = userIds[Math.floor(Math.random() * userIds.length)];
+          op = prisma.user.findUnique({ where: { id } });
+        } else if (readType === 1) {
+          op = prisma.user.findMany({
+            where: { score: { gt: Math.floor(Math.random() * 500_000) }, active: true },
+            orderBy: { score: "asc" },
+            take: 100,
+          });
+        } else {
+          const id = userIds[Math.floor(Math.random() * userIds.length)];
+          op = prisma.item.findMany({ where: { ownerId: id }, take: 10 });
+        }
+
+        const { durationMs, error } = await timedWithTimeout(
+          () => op,
+          STRESS_CONFIG.OP_TIMEOUT_MS
+        );
+
+        if (error) {
+          failureCount++;
+          const info = classifyError(error);
+          if (errors.length < 3) errors.push(info.message.slice(0, 120));
+          crashed = true;
+          return;
+        }
+        successCount++;
+        totalLatency += durationMs;
+        maxLat = Math.max(maxLat, durationMs);
+      }
+    };
+
+    const startTime = Date.now();
+    const workers = Array.from({ length: concurrency }, () => worker());
+    await Promise.all(workers);
+    const elapsed = Date.now() - startTime || 1;
+
+    const throughput = Math.round(successCount / (elapsed / 1000));
+    maxThroughput = Math.max(maxThroughput, throughput);
+    if (successCount > 0) maxConcurrencySustained = concurrency;
+
+    results.push({
+      level: concurrency,
+      label,
+      successCount,
+      failureCount,
+      avgLatencyMs: successCount > 0 ? Math.round((totalLatency / successCount) * 100) / 100 : 0,
+      maxLatencyMs: Math.round(maxLat * 100) / 100,
+      throughput,
+      errors: errors.slice(0, 3),
+      crashed,
+    });
+
+    if (crashed) {
+      console.log(chalk.red(`💥 CRASHED`));
+      if (errors.length > 0) console.log(chalk.red(`       ${errors[0].slice(0, 160)}`));
+    } else {
+      console.log(`${chalk.green(formatOps(throughput))}  (${successCount} ops, avg ${(totalLatency / successCount).toFixed(1)}ms)`);
+    }
+
+    // Brief cooldown between concurrency levels
+    await sleep(500);
   }
-  for (let i = 0; i < BENCH_CONFIG.POINT_LOOKUP_ITERATIONS; i++) {
-    const id = userIds[i % userIds.length];
-    const { durationMs } = await timed(() => prisma.user.findUnique({ where: { id } }));
-    pointLatencies.push(durationMs);
+
+  let crashPoint: CrashPoint | null = null;
+  if (crashed && results.length > 0) {
+    const lastGood = [...results].reverse().find((r) => !r.crashed && r.successCount > 0);
+    const crashLevel = results.find((r) => r.crashed) || results[results.length - 1];
+    const info = crashLevel.errors.length > 0 ? classifyError(new Error(crashLevel.errors[0])) : { type: "other", message: "Unknown" };
+    crashPoint = {
+      level: crashLevel.level,
+      label: crashLevel.label,
+      totalSuccessfulOps: results.reduce((s, r) => s + r.successCount, 0),
+      totalFailedOps: results.reduce((s, r) => s + r.failureCount, 0),
+      errorType: info.type as any,
+      errorMessage: info.message,
+      lastGoodLevel: lastGood?.level ?? 0,
+    };
   }
-  pointLatencies.sort((a, b) => a - b);
-  const pointStats = percentiles(pointLatencies);
-  const pointOps = pointStats.mean > 0 ? Math.round(1000 / (pointStats.mean / 1000)) : 0;
 
-  console.log(chalk.gray(`    Point lookup (PK, ${BENCH_CONFIG.POINT_LOOKUP_ITERATIONS} ops):`));
-  console.log(`      p50=${pointStats.p50.toFixed(2)}ms  p95=${pointStats.p95.toFixed(2)}ms  p99=${pointStats.p99.toFixed(2)}ms  avg=${pointStats.mean.toFixed(2)}ms`);
-  console.log(`      Throughput: ~${formatOps(pointOps)}`);
-
-  // ── Indexed Lookup (by email unique) ──
-  const indexedLatencies: number[] = [];
-  for (let i = 0; i < BENCH_CONFIG.POINT_LOOKUP_ITERATIONS; i++) {
-    const email = userEmails[i % userEmails.length];
-    const { durationMs } = await timed(() => prisma.user.findUnique({ where: { email } }));
-    indexedLatencies.push(durationMs);
+  console.log(chalk.gray(`\n    ── Read crash summary ──`));
+  console.log(chalk.gray(`    Max concurrency sustained: ${maxConcurrencySustained}`));
+  console.log(chalk.gray(`    Max throughput:            ${formatOps(maxThroughput)}`));
+  if (crashPoint) {
+    console.log(chalk.red(`    Crashed at:               ${crashPoint.label}`));
+    console.log(chalk.red(`    Error type:               ${crashPoint.errorType}`));
+    console.log(chalk.gray(`    Total ops done:          ${crashPoint.totalSuccessfulOps.toLocaleString()}`));
+  } else {
+    console.log(chalk.green(`    💪 DB survived all read levels!`));
   }
-  indexedLatencies.sort((a, b) => a - b);
-  const indexedStats = percentiles(indexedLatencies);
-  const indexedOps = indexedStats.mean > 0 ? Math.round(1000 / (indexedStats.mean / 1000)) : 0;
-
-  console.log(chalk.gray(`    Indexed lookup (email unique, ${BENCH_CONFIG.POINT_LOOKUP_ITERATIONS} ops):`));
-  console.log(`      p50=${indexedStats.p50.toFixed(2)}ms  p95=${indexedStats.p95.toFixed(2)}ms  p99=${indexedStats.p99.toFixed(2)}ms  avg=${indexedStats.mean.toFixed(2)}ms`);
-  console.log(`      Throughput: ~${formatOps(indexedOps)}`);
-
-  // ── Range Scan (WHERE score > X, ordered, limited) ──
-  const rangeLatencies: number[] = [];
-  const rangeIter = BENCH_CONFIG.RANGE_ITERATIONS;
-  for (let i = 0; i < rangeIter; i++) {
-    const threshold = Math.floor(Math.random() * 500_000);
-    const { durationMs } = await timed(() =>
-      prisma.user.findMany({
-        where: { score: { gt: threshold }, active: true },
-        orderBy: { score: "asc" },
-        take: 100,
-      })
-    );
-    rangeLatencies.push(durationMs);
-  }
-  rangeLatencies.sort((a, b) => a - b);
-  const rangeStats = percentiles(rangeLatencies);
-  const rangeOps = rangeStats.mean > 0 ? Math.round(1000 / (rangeStats.mean / 1000)) : 0;
-
-  console.log(chalk.gray(`    Range scan (score > X, active=true, limit 100, ${rangeIter} ops):`));
-  console.log(`      p50=${rangeStats.p50.toFixed(2)}ms  p95=${rangeStats.p95.toFixed(2)}ms  p99=${rangeStats.p99.toFixed(2)}ms  avg=${rangeStats.mean.toFixed(2)}ms`);
-  console.log(`      Throughput: ~${formatOps(rangeOps)}`);
 
   return {
     db: dbLabel,
-    pointLookupMs: pointStats,
-    pointLookupOps: pointOps,
-    indexedLookupMs: indexedStats,
-    indexedLookupOps: indexedOps,
-    rangeScanMs: rangeStats,
-    rangeScanOps: rangeOps,
+    results,
+    crashPoint,
+    maxConcurrencySustained,
+    maxThroughput,
   };
 }
