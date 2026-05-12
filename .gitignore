@@ -1,8 +1,11 @@
 node_modules/
 dist/
 .env
-results/*.json
-results/*.png
-results/*.html
+results/bench-results-*.json     # Large timestamped dumps (gitignore)
+results/sample.json              # If you generate samples, name them differently
+
+# Keep latest.json and report.html in repo as sample results
+!results/latest.json
+!results/report.html
 prisma/*.db
 prisma/migrations/

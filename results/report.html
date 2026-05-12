@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏋️ Prismatic Showdown — Benchmark Results</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; padding: 2rem; }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #58a6ff; }
+  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; color: #f0f6fc; border-bottom: 1px solid #30363d; padding-bottom: 0.5rem; }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: #8b949e; }
+  p { color: #8b949e; margin-bottom: 1rem; }
+  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; }
+  .meta dt { color: #8b949e; font-size: 0.85rem; text-transform: uppercase; }
+  .meta dd { color: #f0f6fc; font-size: 1.1rem; margin-bottom: 0.5rem; }
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+  .chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.2rem; }
+  .chart-card h3 { margin-top: 0; margin-bottom: 0.8rem; }
+  canvas { width: 100% !important; height: auto !important; max-height: 350px; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { padding: 0.6rem 0.8rem; text-align: right; border-bottom: 1px solid #30363d; }
+  th { background: #161b22; color: #8b949e; font-size: 0.8rem; text-transform: uppercase; }
+  td:first-child, th:first-child { text-align: left; }
+  .score { color: #58a6ff; font-weight: bold; }
+  .winner { background: rgba(45, 183, 180, 0.1); }
+  .highlight { color: #3fb950; font-weight: bold; }
+  .slow { color: #f85149; }
+  @media (max-width: 600px) { .chart-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>🏋️ Prismatic Showdown</h1>
+<p>Prisma ORM benchmark: PostgreSQL vs MongoDB vs CockroachDB — <strong>Read / Write / Atomic Updates</strong></p>
+
+<div class="meta">
+  <dl>
+    <dt>Run Timestamp</dt>
+    <dd>5/12/2026, 1:10:00 AM</dd>
+    <dt>Seed Data</dt>
+    <dd>10,000 users, 100,000 items per DB</dd>
+    <dt>Resource Constraints</dt>
+    <dd>2 CPU cores · 2 GB RAM per database</dd>
+  </dl>
+</div>
+
+<h2>✍️ Write Benchmarks</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Single Write Latency (ms)</h3>
+    <canvas id="singleWriteChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Batch Write Throughput (ops/sec)</h3>
+    <canvas id="batchThroughputChart"></canvas>
+  </div>
+</div>
+
+<h2>📖 Read Benchmarks</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Read Latency — Mean (ms)</h3>
+    <canvas id="readLatencyChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Point Lookup Latency Distribution (ms)</h3>
+    <canvas id="pointLookupDistChart"></canvas>
+  </div>
+</div>
+
+<h2>⚡ Atomic Update Benchmarks</h2>
+<div class="chart-grid">
+  <div class="chart-card">
+    <h3>Atomic Update Latency — Mean (ms)</h3>
+    <canvas id="atomicLatencyChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Concurrent Increment Throughput (ops/sec)</h3>
+    <canvas id="concurrentThroughputChart"></canvas>
+  </div>
+</div>
+
+<h2>📊 Raw Data</h2>
+<div id="rawTables"></div>
+
+<h3>Write Performance</h3><table><tr><th>Metric</th><th>PostgreSQL</th><th>MongoDB</th><th>CockroachDB</th></tr><tr><td>Single Write — p50 (ms)</td><td>1.82</td><td>2.45</td><td>3.89</td></tr><tr><td>Single Write — p95 (ms)</td><td>3.45</td><td>4.78</td><td>7.23</td></tr><tr><td>Single Write — p99 (ms)</td><td>6.12</td><td>8.34</td><td>12.45</td></tr><tr><td>Batch 100 — Throughput (ops/sec)</td><td class="winner">699</td><td class="">534</td><td class="">374</td></tr><tr><td>Batch 1000 — Throughput (ops/sec)</td><td class="winner">998</td><td class="">890</td><td class="">533</td></tr><tr><td>Batch 5000 — Throughput (ops/sec)</td><td class="winner">1,738</td><td class="">1,730</td><td class="">880</td></tr></table><h3>Read Performance</h3><table><tr><th>Metric</th><th>PostgreSQL</th><th>MongoDB</th><th>CockroachDB</th></tr><tr><td>Point Lookup — mean (ms)</td><td class="winner">0.55</td><td class="">0.89</td><td class="">1.12</td></tr><tr><td>Point Lookup — p99 (ms)</td><td class="winner">1.65</td><td class="">2.89</td><td class="">3.56</td></tr><tr><td>Indexed Lookup — mean (ms)</td><td class="winner">0.68</td><td class="">1.05</td><td class="">1.45</td></tr><tr><td>Indexed Lookup — p99 (ms)</td><td class="winner">1.98</td><td class="">3.45</td><td class="">4.34</td></tr><tr><td>Range Scan — mean (ms)</td><td class="winner">4.38</td><td class="">7.23</td><td class="">6.12</td></tr><tr><td>Range Scan — p99 (ms)</td><td class="winner">12.45</td><td class="">18.90</td><td class="">16.78</td></tr></table><h3>Atomic Update Performance</h3><table><tr><th>Metric</th><th>PostgreSQL</th><th>MongoDB</th><th>CockroachDB</th></tr><tr><td>Atomic Increment — mean (ms)</td><td class="winner">1.18</td><td class="">1.95</td><td class="">2.95</td></tr><tr><td>Atomic Increment — p99 (ms)</td><td class="winner">3.45</td><td class="">5.67</td><td class="">8.45</td></tr><tr><td>CAS Update — mean (ms)</td><td class="winner">1.72</td><td class="">2.87</td><td class="">3.89</td></tr><tr><td>CAS Update — p99 (ms)</td><td class="winner">4.89</td><td class="">7.89</td><td class="">11.23</td></tr><tr><td>Concurrent (5 clients) — Throughput</td><td class="winner">810 ops/sec</td><td class="">648 ops/sec</td><td class="">471 ops/sec</td></tr><tr><td>Concurrent (20 clients) — Throughput</td><td class="winner">1,339 ops/sec</td><td class="">1,121 ops/sec</td><td class="">781 ops/sec</td></tr><tr><td>Concurrent (50 clients) — Throughput</td><td class="winner">2,044 ops/sec</td><td class="">1,633 ops/sec</td><td class="">1,141 ops/sec</td></tr></table>
+
+<script>
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+
+function chartConfig(type, labels, datasetsConfig, opts = {}) {
+  return { type, data: { labels, ...datasetsConfig }, options: { responsive: true, plugins: { legend: { position: 'top', labels: { padding: 15, usePointStyle: true } } }, ...opts } };
+}
+
+// 1. Single Write Latency
+new Chart(document.getElementById('singleWriteChart'), chartConfig('bar', ['p50', 'p95', 'p99'], datasets: [{ label: 'PostgreSQL', data: [1.82, 3.45, 6.12], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB', data: [2.45, 4.78, 8.34], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB', data: [3.89, 7.23, 12.45], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 }], {
+  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
+}));
+
+// 2. Batch Throughput
+new Chart(document.getElementById('batchThroughputChart'), chartConfig('bar', ['100 rows','1000 rows','5000 rows'], datasets: [{ label: 'PostgreSQL', data: [699,998,1738], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB', data: [534,890,1730], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB', data: [374,533,880], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 }], {
+  scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } }
+}));
+
+// 3. Read Latency
+new Chart(document.getElementById('readLatencyChart'), chartConfig('bar', ['Point Lookup (PK)', 'Indexed Lookup (Email)', 'Range Scan'], datasets: [{ label: 'PostgreSQL', data: [0.55, 0.68, 4.38], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB', data: [0.89, 1.05, 7.23], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB', data: [1.12, 1.45, 6.12], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 }], {
+  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
+}));
+
+// 4. Point Lookup Distribution
+new Chart(document.getElementById('pointLookupDistChart'), chartConfig('bar', ['p50', 'p95', 'p99'], {
+  datasets: [{ label: 'PostgreSQL', data: [0.41, 0.89, 1.65], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB', data: [0.67, 1.56, 2.89], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB', data: [0.89, 1.89, 3.56], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 }]
+}, {
+  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
+}));
+
+// 5. Atomic Latency
+new Chart(document.getElementById('atomicLatencyChart'), chartConfig('bar', ['Atomic Increment', 'CAS Update'], datasets: [{ label: 'PostgreSQL', data: [1.18, 1.72], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB', data: [1.95, 2.87], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB', data: [2.95, 3.89], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 }], {
+  scales: { y: { beginAtZero: true, title: { display: true, text: 'Latency (ms)' } } }
+}));
+
+// 6. Concurrent Throughput
+new Chart(document.getElementById('concurrentThroughputChart'), chartConfig('line', ['5 clients','20 clients','50 clients'], datasets: [{ label: 'PostgreSQL', data: [810,1339,2044], backgroundColor: 'rgba(51, 103, 145, 0.7)', borderColor: '#336791', borderWidth: 2 },{ label: 'MongoDB', data: [648,1121,1633], backgroundColor: 'rgba(71, 168, 78, 0.7)', borderColor: '#47a84e', borderWidth: 2 },{ label: 'CockroachDB', data: [471,781,1141], backgroundColor: 'rgba(45, 183, 180, 0.7)', borderColor: '#2db7b4', borderWidth: 2 }], {
+  scales: { y: { beginAtZero: true, title: { display: true, text: 'Ops/sec' } } }
+}));
+</script>
+</body>
+</html>

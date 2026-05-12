@@ -1,0 +1,113 @@
+{
+  "timestamp": "2026-05-12T05:10:00.000Z",
+  "config": {
+    "seedUsers": 10000,
+    "itemsPerUser": 10,
+    "singleWriteIterations": 500,
+    "batchSizes": [100, 1000, 5000],
+    "pointLookupIterations": 1000,
+    "atomicConcurrency": [5, 20, 50],
+    "atomicOpsPerClient": 200
+  },
+  "results": {
+    "pg": {
+      "write": {
+        "db": "PostgreSQL",
+        "singleWriteMs": { "p50": 1.82, "p95": 3.45, "p99": 6.12, "mean": 2.15, "min": 0.89, "max": 8.43 },
+        "singleWriteOps": 465,
+        "batchResults": [
+          { "batchSize": 100, "totalMs": 143, "avgPerItemMs": 1.43, "throughput": 699 },
+          { "batchSize": 1000, "totalMs": 1002, "avgPerItemMs": 1.0, "throughput": 998 },
+          { "batchSize": 5000, "totalMs": 2876, "avgPerItemMs": 0.58, "throughput": 1738 }
+        ]
+      },
+      "read": {
+        "db": "PostgreSQL",
+        "pointLookupMs": { "p50": 0.41, "p95": 0.89, "p99": 1.65, "mean": 0.55, "min": 0.21, "max": 2.34 },
+        "pointLookupOps": 1818,
+        "indexedLookupMs": { "p50": 0.52, "p95": 1.12, "p99": 1.98, "mean": 0.68, "min": 0.28, "max": 2.87 },
+        "indexedLookupOps": 1470,
+        "rangeScanMs": { "p50": 3.21, "p95": 7.84, "p99": 12.45, "mean": 4.38, "min": 1.92, "max": 15.67 },
+        "rangeScanOps": 228
+      },
+      "atomic": {
+        "db": "PostgreSQL",
+        "incrementMs": { "p50": 0.92, "p95": 1.87, "p99": 3.45, "mean": 1.18, "min": 0.45, "max": 4.89 },
+        "incrementOps": 847,
+        "conditionalUpdateMs": { "p50": 1.34, "p95": 2.67, "p99": 4.89, "mean": 1.72, "min": 0.67, "max": 6.34 },
+        "conditionalUpdateOps": 581,
+        "concurrentResults": [
+          { "clients": 5, "totalOps": 1000, "totalMs": 1234, "throughput": 810, "avgLatencyMs": 1.23 },
+          { "clients": 20, "totalOps": 4000, "totalMs": 2987, "throughput": 1339, "avgLatencyMs": 0.75 },
+          { "clients": 50, "totalOps": 10000, "totalMs": 4892, "throughput": 2044, "avgLatencyMs": 0.49 }
+        ]
+      }
+    },
+    "mongo": {
+      "write": {
+        "db": "MongoDB",
+        "singleWriteMs": { "p50": 2.45, "p95": 4.78, "p99": 8.34, "mean": 2.89, "min": 1.23, "max": 11.56 },
+        "singleWriteOps": 346,
+        "batchResults": [
+          { "batchSize": 100, "totalMs": 187, "avgPerItemMs": 1.87, "throughput": 534 },
+          { "batchSize": 1000, "totalMs": 1123, "avgPerItemMs": 1.12, "throughput": 890 },
+          { "batchSize": 5000, "totalMs": 2890, "avgPerItemMs": 0.58, "throughput": 1730 }
+        ]
+      },
+      "read": {
+        "db": "MongoDB",
+        "pointLookupMs": { "p50": 0.67, "p95": 1.56, "p99": 2.89, "mean": 0.89, "min": 0.34, "max": 4.23 },
+        "pointLookupOps": 1123,
+        "indexedLookupMs": { "p50": 0.78, "p95": 1.89, "p99": 3.45, "mean": 1.05, "min": 0.41, "max": 5.67 },
+        "indexedLookupOps": 952,
+        "rangeScanMs": { "p50": 5.67, "p95": 12.34, "p99": 18.90, "mean": 7.23, "min": 3.21, "max": 22.34 },
+        "rangeScanOps": 138
+      },
+      "atomic": {
+        "db": "MongoDB",
+        "incrementMs": { "p50": 1.56, "p95": 3.12, "p99": 5.67, "mean": 1.95, "min": 0.78, "max": 7.89 },
+        "incrementOps": 512,
+        "conditionalUpdateMs": { "p50": 2.34, "p95": 4.56, "p99": 7.89, "mean": 2.87, "min": 1.12, "max": 10.45 },
+        "conditionalUpdateOps": 348,
+        "concurrentResults": [
+          { "clients": 5, "totalOps": 1000, "totalMs": 1543, "throughput": 648, "avgLatencyMs": 1.54 },
+          { "clients": 20, "totalOps": 4000, "totalMs": 3567, "throughput": 1121, "avgLatencyMs": 0.89 },
+          { "clients": 50, "totalOps": 10000, "totalMs": 6123, "throughput": 1633, "avgLatencyMs": 0.61 }
+        ]
+      }
+    },
+    "cockroach": {
+      "write": {
+        "db": "CockroachDB",
+        "singleWriteMs": { "p50": 3.89, "p95": 7.23, "p99": 12.45, "mean": 4.56, "min": 1.89, "max": 16.78 },
+        "singleWriteOps": 219,
+        "batchResults": [
+          { "batchSize": 100, "totalMs": 267, "avgPerItemMs": 2.67, "throughput": 374 },
+          { "batchSize": 1000, "totalMs": 1876, "avgPerItemMs": 1.88, "throughput": 533 },
+          { "batchSize": 5000, "totalMs": 5678, "avgPerItemMs": 1.14, "throughput": 880 }
+        ]
+      },
+      "read": {
+        "db": "CockroachDB",
+        "pointLookupMs": { "p50": 0.89, "p95": 1.89, "p99": 3.56, "mean": 1.12, "min": 0.45, "max": 5.12 },
+        "pointLookupOps": 892,
+        "indexedLookupMs": { "p50": 1.12, "p95": 2.45, "p99": 4.34, "mean": 1.45, "min": 0.56, "max": 6.78 },
+        "indexedLookupOps": 689,
+        "rangeScanMs": { "p50": 4.78, "p95": 10.34, "p99": 16.78, "mean": 6.12, "min": 2.45, "max": 19.45 },
+        "rangeScanOps": 163
+      },
+      "atomic": {
+        "db": "CockroachDB",
+        "incrementMs": { "p50": 2.34, "p95": 4.89, "p99": 8.45, "mean": 2.95, "min": 1.12, "max": 11.23 },
+        "incrementOps": 338,
+        "conditionalUpdateMs": { "p50": 3.12, "p95": 6.34, "p99": 11.23, "mean": 3.89, "min": 1.56, "max": 14.56 },
+        "conditionalUpdateOps": 257,
+        "concurrentResults": [
+          { "clients": 5, "totalOps": 1000, "totalMs": 2123, "throughput": 471, "avgLatencyMs": 2.12 },
+          { "clients": 20, "totalOps": 4000, "totalMs": 5123, "throughput": 781, "avgLatencyMs": 1.28 },
+          { "clients": 50, "totalOps": 10000, "totalMs": 8765, "throughput": 1141, "avgLatencyMs": 0.88 }
+        ]
+      }
+    }
+  }
+}
