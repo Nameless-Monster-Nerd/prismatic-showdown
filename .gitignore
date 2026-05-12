@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+results/*.json
+results/*.png
+results/*.html
+prisma/*.db
+prisma/migrations/

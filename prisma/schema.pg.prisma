@@ -1,0 +1,44 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../node_modules/.prisma/pg-client"
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL_PG")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  bio       String   @default("")
+  score     Int      @default(0)
+  version   Int      @default(1)
+  active    Boolean  @default(true)
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([score])
+  @@index([active, createdAt])
+}
+
+model Item {
+  id        Int      @id @default(autoincrement())
+  title     String
+  tag       String
+  value     Float    @default(0)
+  ownerId   Int
+  createdAt DateTime @default(now())
+
+  @@index([tag])
+  @@index([ownerId])
+  @@index([value])
+}
+
+model Counter {
+  id    Int @id
+  value Int @default(0)
+}

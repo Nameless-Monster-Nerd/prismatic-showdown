@@ -1,0 +1,24 @@
+{
+  "name": "prismatic-showdown",
+  "version": "1.0.0",
+  "description": "Head-to-head Prisma benchmark: PostgreSQL vs MongoDB vs CockroachDB",
+  "private": true,
+  "scripts": {
+    "seed": "npx tsx src/seed.ts",
+    "bench": "npx tsx src/run.ts",
+    "report": "npx tsx src/reporter.ts",
+    "full": "npx tsx src/seed.ts && npx tsx src/run.ts && npx tsx src/reporter.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "chalk": "^5.3.0",
+    "cli-progress": "^3.12.0",
+    "prisma": "^5.22.0"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

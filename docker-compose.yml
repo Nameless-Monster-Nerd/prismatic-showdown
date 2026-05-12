@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bench-pg
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: prismabench
+    ports:
+      - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d prismabench"]
+      interval: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    container_name: bench-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: bench
+      MONGO_INITDB_ROOT_PASSWORD: bench
+      MONGO_INITDB_DATABASE: prismabench
+    ports:
+      - "27017:27017"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh -u bench -p bench --quiet
+      interval: 5s
+      retries: 10
+
+  cockroachdb:
+    image: cockroachdb/cockroach:v24.1.1
+    container_name: bench-cockroach
+    command: start-single-node --insecure --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080
+    environment:
+      COCKROACH_USER: bench
+      COCKROACH_PASSWORD: bench
+      COCKROACH_DATABASE: prismabench
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "cockroach", "node", "status", "--insecure"]
+      interval: 5s
+      retries: 10
